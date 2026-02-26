@@ -110,6 +110,10 @@ export default function Layout() {
             <LogOut size={20} />
           </button>
         </div>
+        <div className="zr-credits">
+          <p>© {new Date().getFullYear()} Todos os direitos reservados</p>
+          <p>Desenvolvido por <strong>Monteirismo</strong></p>
+        </div>
       </nav>
 
       <main className="main-content">
@@ -182,6 +186,17 @@ export default function Layout() {
           display: flex;
           align-items: center;
           justify-content: space-between;
+        }
+        .zr-credits {
+          padding: 1rem 1.5rem;
+          font-size: 0.65rem;
+          color: var(--text-muted);
+          text-align: center;
+          border-top: 1px solid rgba(255,255,255,0.02);
+          line-height: 1.4;
+        }
+        .zr-credits strong {
+          color: var(--primary);
         }
         .user-info {
           display: flex;

@@ -172,6 +172,11 @@ export default function Login() {
                         </>
                     )}
                 </div>
+
+                <div className="zr-footer">
+                    <p>© {new Date().getFullYear()} Todos os direitos reservados</p>
+                    <p>Desenvolvido por <strong>Monteirismo</strong></p>
+                </div>
             </div>
 
             <style>{`
@@ -198,6 +203,18 @@ export default function Login() {
                     margin-top: 1.5rem;
                     text-align: center;
                     font-size: 0.875rem;
+                }
+                .zr-footer {
+                    margin-top: 2rem;
+                    text-align: center;
+                    font-size: 0.7rem;
+                    color: var(--text-muted);
+                    border-top: 1px solid var(--border);
+                    padding-top: 1.5rem;
+                    line-height: 1.5;
+                }
+                .zr-footer strong {
+                    color: var(--primary);
                 }
                 .link-btn {
                     color: var(--primary);
