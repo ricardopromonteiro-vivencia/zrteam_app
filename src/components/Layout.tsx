@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { LogOut, Home, Calendar, Users, Activity } from 'lucide-react';
+import { LogOut, Home, Calendar, Users, Activity, Settings, ShieldCheck } from 'lucide-react';
+import logo from '../assets/logo.png';
 
 export default function Layout() {
   const [profile, setProfile] = useState<any>(null);
@@ -16,13 +17,41 @@ export default function Layout() {
         return;
       }
 
-      const { data, error: _error } = await supabase
+      let { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
         .single();
 
-      if (data) setProfile(data);
+      // Se o perfil não existe (trigger falhou no registo), cria-o agora
+      if (error && error.code === 'PGRST116') {
+        const meta = session.user.user_metadata;
+        const { data: created, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: session.user.id,
+            full_name: meta?.full_name || session.user.email || 'Utilizador',
+            role: meta?.role || 'Atleta',
+          })
+          .select()
+          .single();
+
+        if (created) {
+          data = created;
+          error = null;
+        } else {
+          console.error('Erro ao criar perfil:', createError);
+        }
+      }
+
+      if (data) {
+        setProfile(data);
+      } else if (error) {
+        console.error('Erro ao carregar perfil:', error);
+        // Logout para o utilizador tentar novamente
+        await supabase.auth.signOut();
+        navigate('/');
+      }
     }
     loadSession();
   }, [navigate]);
@@ -36,11 +65,14 @@ export default function Layout() {
     ? [
       { name: 'Dashboard', path: '/dashboard', icon: Home },
       { name: 'Aulas', path: '/aulas', icon: Calendar },
+      { name: 'Área Pessoal', path: '/settings', icon: Settings },
     ]
     : [
       { name: 'Dashboard', path: '/dashboard', icon: Activity },
       { name: 'Gestão de Aulas', path: '/admin/aulas', icon: Calendar },
-      { name: 'Check-in', path: '/admin/checkin', icon: Users },
+      { name: 'Atletas', path: '/admin/atletas', icon: Users },
+      { name: 'Check-in', path: '/admin/checkin', icon: Activity },
+      { name: 'Definições', path: '/settings', icon: Settings },
     ];
 
   if (!profile) return <div className="loading-state">A carregar perfil...</div>;
@@ -49,7 +81,7 @@ export default function Layout() {
     <div className="layout-container">
       <nav className="sidebar">
         <div className="sidebar-header">
-          <h2>ZR Team</h2>
+          <img src={logo} alt="ZR Team" className="sidebar-logo" />
           <span className="role-badge">{profile.role}</span>
         </div>
 
@@ -64,6 +96,9 @@ export default function Layout() {
               {item.name}
             </Link>
           ))}
+          <Link to="/termos" className="nav-link terms-nav-link">
+            <ShieldCheck size={20} /> Termos e Condições
+          </Link>
         </div>
 
         <div className="sidebar-footer">
@@ -97,6 +132,18 @@ export default function Layout() {
         .sidebar-header {
           padding: 1.5rem;
           border-bottom: 1px solid var(--border);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1rem;
+        }
+        .sidebar-logo {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          border: 2px solid var(--primary);
+          padding: 2px;
+          background: white;
         }
         .sidebar-header h2 {
           color: var(--primary);

@@ -38,9 +38,19 @@ CREATE POLICY "Apenas Admin podem atualizar qualquer perfil" ON profiles
 -- Trigger para criar o perfil automaticamente quando um auth.user é criado
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  generated_uid TEXT;
 BEGIN
-  INSERT INTO public.profiles (id, full_name, role)
-  VALUES (new.id, new.raw_user_meta_data->>'full_name', COALESCE(new.raw_user_meta_data->>'role', 'Atleta'));
+  -- Gerar um UID aleatório de 8 caracteres (simulando um UID de cartão)
+  generated_uid := substr(md5(random()::text), 1, 8);
+  
+  INSERT INTO public.profiles (id, full_name, role, nfc_uid)
+  VALUES (
+    new.id, 
+    new.raw_user_meta_data->>'full_name', 
+    COALESCE(new.raw_user_meta_data->>'role', 'Atleta'),
+    COALESCE(new.raw_user_meta_data->>'nfc_uid', generated_uid)
+  );
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

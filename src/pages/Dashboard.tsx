@@ -1,226 +1,329 @@
-import { useOutletContext } from 'react-router-dom';
-import { Activity, Trophy, Calendar } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useOutletContext, Link } from 'react-router-dom';
+import { Activity, Trophy, Calendar, Clock, ExternalLink } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
-// Regras de progressão simples (seguindo a tabela Faixa Roxa: 375 aulas, etc)
-// Para o exemplo geral:
 const GRADUATION_RULES: Record<string, { totalForNextBelt: number, classesPerDegree: number, nextBelt: string }> = {
-    'Branca': { totalForNextBelt: 120, classesPerDegree: 25, nextBelt: 'Azul' },
-    'Azul': { totalForNextBelt: 250, classesPerDegree: 55, nextBelt: 'Roxa' },
-    'Roxa': { totalForNextBelt: 375, classesPerDegree: 85, nextBelt: 'Marrom' },
-    'Marrom': { totalForNextBelt: 500, classesPerDegree: 115, nextBelt: 'Preta' },
-    'Preta': { totalForNextBelt: 1000, classesPerDegree: 200, nextBelt: 'Coral' }
+  'Branca': { totalForNextBelt: 120, classesPerDegree: 25, nextBelt: 'Azul' },
+  'Azul': { totalForNextBelt: 250, classesPerDegree: 55, nextBelt: 'Roxa' },
+  'Roxa': { totalForNextBelt: 375, classesPerDegree: 85, nextBelt: 'Marrom' },
+  'Marrom': { totalForNextBelt: 500, classesPerDegree: 115, nextBelt: 'Preta' },
+  'Preta': { totalForNextBelt: 1000, classesPerDegree: 200, nextBelt: 'Coral' }
 };
 
 export default function Dashboard() {
-    const { profile } = useOutletContext<{ profile: any }>();
+  const { profile } = useOutletContext<{ profile: any }>();
+  const [stats, setStats] = useState({ weekClasses: 0, nextClasses: [] as any[] });
+  const [loading, setLoading] = useState(true);
+  const [checkinLoading, setCheckinLoading] = useState(false);
 
-    if (!profile) return null;
-
-    const rule = GRADUATION_RULES[profile.belt] || GRADUATION_RULES['Branca'];
-
-    // Lógica de progressão
-    const progressPercent = Math.min(100, Math.round((profile.attended_classes / rule.totalForNextBelt) * 100));
-    const classesUntilNextDegree = rule.classesPerDegree - (profile.attended_classes % rule.classesPerDegree);
-    const classesUntilNextBelt = rule.totalForNextBelt - profile.attended_classes;
-
-    if (profile.role === 'Admin' || profile.role === 'Professor') {
-        return (
-            <div className="dashboard">
-                <h1 className="page-title">Visão Geral - {profile.role}</h1>
-                <div className="stats-grid">
-                    <div className="stat-card">
-                        <Activity className="stat-icon text-primary" />
-                        <div className="stat-content">
-                            <h3>Aulas Hoje</h3>
-                            <p className="stat-value">3</p>
-                        </div>
-                    </div>
-                    <div className="stat-card">
-                        <Trophy className="stat-icon text-primary" />
-                        <div className="stat-content">
-                            <h3>Alunos Ativos</h3>
-                            <p className="stat-value">42</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
+  useEffect(() => {
+    if (profile) {
+      fetchDashboardData();
     }
+  }, [profile]);
 
-    // Dashboard do Atleta
+  async function fetchDashboardData() {
+    setLoading(true);
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    // 1. Aulas da semana
+    const { count: weekCount } = await supabase
+      .from('class_bookings')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', profile.id)
+      .gte('created_at', startOfWeek.toISOString());
+
+    // 2. Próximas aulas marcadas
+    const { data: bookings } = await supabase
+      .from('class_bookings')
+      .select(`
+                id,
+                status,
+                classes (
+                    id,
+                    title,
+                    date,
+                    start_time,
+                    end_time
+                )
+            `)
+      .eq('user_id', profile.id)
+      .eq('status', 'Marcado')
+      .gte('classes.date', now.toISOString().split('T')[0])
+      .order('classes(date)', { ascending: true })
+      .limit(3);
+
+    setStats({
+      weekClasses: weekCount || 0,
+      nextClasses: bookings?.map((b: any) => ({ ...b.classes, booking_id: b.id })).filter(Boolean) || []
+    });
+    setLoading(false);
+  }
+
+  const handleSecureCheckin = async () => {
+    setCheckinLoading(true);
+    try {
+      // 1. Obter Localização
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0
+        });
+      });
+
+      // 2. Obter IP Público
+      const ipResponse = await fetch('https://api.ipify.org?format=json');
+      const ipData = await ipResponse.json();
+
+      // 3. Chamar RPC no Supabase
+      const { data } = await supabase.rpc('secure_checkin', {
+        p_lat: position.coords.latitude,
+        p_lng: position.coords.longitude,
+        p_client_ip: ipData.ip
+      });
+
+      if (data?.success) {
+        alert(`✅ ${data.message}: ${data.class_title}`);
+        fetchDashboardData();
+      } else {
+        alert(`❌ Erro: ${data?.error || 'Falha no check-in'}`);
+      }
+    } catch (err: any) {
+      alert('❌ Erro: Por favor ativa o GPS e tenta novamente.');
+    } finally {
+      setCheckinLoading(false);
+    }
+  };
+
+  if (!profile) return null;
+
+  const rule = GRADUATION_RULES[profile.belt] || GRADUATION_RULES['Branca'];
+  const progressPercent = Math.min(100, Math.round((profile.attended_classes / rule.totalForNextBelt) * 100));
+  const classesUntilNextDegree = rule.classesPerDegree - (profile.attended_classes % rule.classesPerDegree);
+  const classesUntilNextBelt = rule.totalForNextBelt - profile.attended_classes;
+
+  const getCalendarLinks = (cls: any) => {
+    const start = cls.date.replace(/-/g, '') + 'T' + cls.start_time.replace(/:/g, '') + '00Z';
+    const end = cls.date.replace(/-/g, '') + 'T' + cls.end_time.replace(/:/g, '') + '00Z';
+    const title = encodeURIComponent(cls.title + ' - ZR Team');
+
+    const google = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}`;
+    const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${title}&startdt=${cls.date}T${cls.start_time}&enddt=${cls.date}T${cls.end_time}`;
+
+    return { google, outlook };
+  };
+
+  if (profile.role === 'Admin' || profile.role === 'Professor') {
     return (
-        <div className="dashboard animate-fade-in">
-            <h1 className="page-title">O Teu Treino</h1>
-
-            <div className="stats-grid">
-                <div className="stat-card">
-                    <Activity className="stat-icon text-primary" />
-                    <div className="stat-content">
-                        <h3>Total de Presenças</h3>
-                        <p className="stat-value">{profile.attended_classes}</p>
-                    </div>
-                </div>
-                <div className="stat-card">
-                    <Calendar className="stat-icon text-primary" />
-                    <div className="stat-content">
-                        <h3>Aulas esta Semana</h3>
-                        <p className="stat-value">2</p>
-                    </div>
-                </div>
+      <div className="dashboard animate-fade-in">
+        <h1 className="page-title">Visão Geral - {profile.role}</h1>
+        <div className="stats-grid">
+          <div className="stat-card">
+            <Activity className="stat-icon" />
+            <div className="stat-content">
+              <h3>Aulas Totais</h3>
+              <p className="stat-value">{profile.attended_classes}</p>
             </div>
-
-            <div className="progression-card">
-                <div className="progression-header">
-                    <div>
-                        <h2 className="progression-title">Progressão: Faixa {profile.belt}</h2>
-                        <p className="progression-subtitle">Atualmente com {profile.degrees} Graus</p>
-                    </div>
-                    <div className="belt-badge">
-                        <span className={`belt-color belt-${profile.belt.toLowerCase()}`}></span>
-                    </div>
-                </div>
-
-                <div className="progress-bar-container">
-                    <div className="progress-bar-track">
-                        <div
-                            className="progress-bar-fill"
-                            style={{ width: `${progressPercent}%` }}
-                        ></div>
-                    </div>
-                    <div className="progress-labels">
-                        <span>{profile.attended_classes} Aulas</span>
-                        <span>{rule.totalForNextBelt} Aulas para Faixa {rule.nextBelt}</span>
-                    </div>
-                </div>
-
-                <div className="next-milestone">
-                    <p>Faltam <strong>{classesUntilNextDegree}</strong> aulas para o próximo grau.</p>
-                    <p>Faltam <strong>{classesUntilNextBelt}</strong> aulas para a Faixa {rule.nextBelt}.</p>
-                </div>
+          </div>
+          <div className="stat-card">
+            <Trophy className="stat-icon" />
+            <div className="stat-content">
+              <h3>Nível</h3>
+              <p className="stat-value">{profile.belt} {profile.degrees}°</p>
             </div>
-
-            <style>{`
-        .dashboard {
-          max-width: 1000px;
-          margin: 0 auto;
-        }
-        .page-title {
-          font-size: 1.875rem;
-          font-weight: 700;
-          margin-bottom: 2rem;
-          color: white;
-        }
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 1.5rem;
-          margin-bottom: 2rem;
-        }
-        .stat-card {
-          background-color: var(--bg-card);
-          padding: 1.5rem;
-          border-radius: 1rem;
-          border: 1px solid var(--border);
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-        }
-        .stat-icon {
-          width: 48px;
-          height: 48px;
-          padding: 12px;
-          border-radius: 0.75rem;
-          background-color: rgba(16, 185, 129, 0.1);
-          color: var(--primary);
-        }
-        .stat-content h3 {
-          font-size: 0.875rem;
-          color: var(--text-muted);
-          font-weight: 500;
-          margin-bottom: 0.25rem;
-        }
-        .stat-value {
-          font-size: 1.5rem;
-          font-weight: 700;
-          color: var(--text-main);
-        }
-        .progression-card {
-          background-color: var(--bg-card);
-          padding: 2rem;
-          border-radius: 1rem;
-          border: 1px solid var(--border);
-        }
-        .progression-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 2rem;
-        }
-        .progression-title {
-          font-size: 1.25rem;
-          font-weight: 600;
-          margin-bottom: 0.25rem;
-        }
-        .progression-subtitle {
-          color: var(--text-muted);
-          font-size: 0.875rem;
-        }
-        .belt-badge {
-          width: 60px;
-          height: 12px;
-          border-radius: 4px;
-          background-color: #222;
-          border: 1px solid #444;
-          overflow: hidden;
-        }
-        .belt-color {
-          display: block;
-          width: 100%;
-          height: 100%;
-        }
-        .belt-branca { background-color: #fff; }
-        .belt-azul { background-color: #2563eb; }
-        .belt-roxa { background-color: #9333ea; }
-        .belt-marrom { background-color: #78350f; }
-        .belt-preta { background-color: #000; }
-
-        .progress-bar-track {
-          height: 12px;
-          background-color: #374151;
-          border-radius: 9999px;
-          overflow: hidden;
-          margin-bottom: 0.5rem;
-        }
-        .progress-bar-fill {
-          height: 100%;
-          background-color: var(--primary);
-          border-radius: 9999px;
-          transition: width 1s ease-out;
-        }
-        .progress-labels {
-          display: flex;
-          justify-content: space-between;
-          font-size: 0.875rem;
-          color: var(--text-muted);
-          margin-bottom: 1.5rem;
-        }
-        .next-milestone {
-          background-color: rgba(16, 185, 129, 0.05);
-          border-radius: 0.5rem;
-          padding: 1rem;
-          border: 1px solid rgba(16, 185, 129, 0.2);
-        }
-        .next-milestone p {
-          margin-bottom: 0.5rem;
-          color: var(--text-main);
-        }
-        .next-milestone p:last-child {
-          margin-bottom: 0;
-        }
-        .next-milestone strong {
-          color: var(--primary);
-        }
-      `}</style>
+          </div>
         </div>
+      </div>
     );
+  }
+
+  return (
+    <div className="dashboard animate-fade-in">
+      <h1 className="page-title">O Teu Treino</h1>
+
+      <div className="stats-grid">
+        <div className="stat-card">
+          <Activity className="stat-icon" />
+          <div className="stat-content">
+            <h3>Total de Presenças</h3>
+            <p className="stat-value">{profile.attended_classes}</p>
+          </div>
+        </div>
+        <div className="stat-card">
+          <Calendar className="stat-icon" />
+          <div className="stat-content">
+            <h3>Aulas esta Semana</h3>
+            <p className="stat-value">{loading ? '...' : stats.weekClasses}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="dashboard-grid">
+        <div className="progression-column">
+          <div className="progression-card">
+            <div className="progression-header">
+              <div>
+                <h2 className="progression-title">Progressão: Faixa {profile.belt}</h2>
+                <p className="progression-subtitle">Atualmente com {profile.degrees} Graus</p>
+              </div>
+              <div className="belt-badge">
+                <span className={`belt-color belt-${profile.belt.toLowerCase()}`}></span>
+              </div>
+            </div>
+
+            <div className="progress-bar-container">
+              <div className="progress-bar-track">
+                <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }}></div>
+              </div>
+              <div className="progress-labels">
+                <span>{profile.attended_classes} Aulas</span>
+                <span>{rule.totalForNextBelt} Aulas para Faixa {rule.nextBelt}</span>
+              </div>
+            </div>
+
+            <div className="next-milestone">
+              <p>Faltam <strong>{classesUntilNextDegree}</strong> aulas para o próximo grau.</p>
+              <p>Faltam <strong>{classesUntilNextBelt}</strong> aulas para a Faixa {rule.nextBelt}.</p>
+            </div>
+          </div>
+
+          <div className="secure-checkin-banner">
+            <div className="banner-content">
+              <h3>Presença Inteligente</h3>
+              <p>Confirmamos a tua presença automaticamente através da tua localização (GPS).</p>
+            </div>
+            <button
+              className={`btn-secure-checkin ${checkinLoading ? 'loading' : ''}`}
+              onClick={handleSecureCheckin}
+              disabled={checkinLoading}
+            >
+              {checkinLoading ? 'A validar...' : 'Confirmar Presença'}
+            </button>
+          </div>
+        </div>
+
+        <div className="agenda-column">
+          <div className="agenda-card">
+            <div className="agenda-header">
+              <h2 className="agenda-title">As Minhas Próximas Aulas</h2>
+              <Link to="/aulas" className="agenda-link">Ver todas</Link>
+            </div>
+
+            {loading ? (
+              <p className="loading-small">A carregar agenda...</p>
+            ) : stats.nextClasses.length === 0 ? (
+              <div className="agenda-empty">
+                <p>Ainda não tens aulas marcadas.</p>
+                <Link to="/aulas" className="btn-secondary-sm">Marcar Aula</Link>
+              </div>
+            ) : (
+              <div className="agenda-list">
+                {stats.nextClasses.map(cls => {
+                  const links = getCalendarLinks(cls);
+                  return (
+                    <div key={cls.id} className="agenda-item">
+                      <div className="agenda-item-info">
+                        <h4>{cls.title}</h4>
+                        <p><Calendar size={12} /> {cls.date}</p>
+                        <p><Clock size={12} /> {cls.start_time.substring(0, 5)}</p>
+                      </div>
+                      <div className="agenda-actions">
+                        <div className="dropdown">
+                          <button className="btn-calendar-trigger">
+                            <ExternalLink size={14} /> Calendário
+                          </button>
+                          <div className="dropdown-menu">
+                            <a href={links.google} target="_blank" rel="noreferrer">Google Calendar</a>
+                            <a href={links.outlook} target="_blank" rel="noreferrer">Outlook</a>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+                .dashboard { max-width: 1200px; margin: 0 auto; }
+                .page-title { font-size: 1.875rem; font-weight: 700; margin-bottom: 2rem; color: white; }
+                .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+                .stat-card { background: var(--bg-card); padding: 1.5rem; border-radius: 1rem; border: 1px solid var(--border); display: flex; align-items: center; gap: 1rem; }
+                .stat-icon { width: 48px; height: 48px; padding: 12px; border-radius: 0.75rem; background: rgba(16, 185, 129, 0.1); color: var(--primary); }
+                .stat-content h3 { font-size: 0.875rem; color: var(--text-muted); font-weight: 500; margin-bottom: 0.25rem; }
+                .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--text-main); }
+                
+                .dashboard-grid { display: grid; grid-template-columns: 1fr 350px; gap: 1.5rem; align-items: start; }
+                .progression-card, .agenda-card { background: var(--bg-card); padding: 1.5rem; border-radius: 1rem; border: 1px solid var(--border); }
+                
+                .progression-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; }
+                .progression-title { font-size: 1.25rem; font-weight: 600; color: white; margin-bottom: 0.25rem; }
+                .progression-subtitle { color: var(--text-muted); font-size: 0.875rem; }
+                .belt-badge { width: 60px; height: 12px; border-radius: 4px; background: #222; border: 1px solid #444; overflow: hidden; }
+                .belt-color { display: block; width: 100%; height: 100%; }
+                .belt-branca { background: #fff; }
+                .belt-azul { background: #2563eb; }
+                .belt-roxa { background: #9333ea; }
+                .belt-marrom { background: #78350f; }
+                .belt-preta { background: #000; }
+
+                .progress-bar-track { height: 10px; background: #374151; border-radius: 9999px; overflow: hidden; margin-bottom: 0.5rem; }
+                .progress-bar-fill { height: 100%; background: var(--primary); border-radius: 9999px; transition: width 1s ease-out; }
+                .progress-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem; }
+                .next-milestone { background: rgba(16, 185, 129, 0.05); border-radius: 0.5rem; padding: 1rem; border: 1px solid rgba(16, 185, 129, 0.1); }
+                .next-milestone p { font-size: 0.875rem; margin-bottom: 0.25rem; color: var(--text-main); }
+                .next-milestone strong { color: var(--primary); }
+
+                .secure-checkin-banner { 
+                    margin-top: 1.5rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+                    border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 1rem; padding: 1.5rem; display: flex; 
+                    justify-content: space-between; align-items: center; gap: 1.5rem;
+                }
+                .banner-content h3 { font-size: 1.125rem; color: var(--primary); font-weight: 600; margin-bottom: 0.25rem; }
+                .banner-content p { font-size: 0.875rem; color: var(--text-muted); }
+                .btn-secure-checkin { 
+                    background: var(--primary); color: white; padding: 0.75rem 1.25rem; border-radius: 0.5rem; 
+                    font-weight: 700; border: none; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+                }
+                .btn-secure-checkin:hover { background: var(--primary-dark); transform: translateY(-1px); }
+                .btn-secure-checkin:disabled { opacity: 0.7; cursor: not-allowed; }
+                .btn-secure-checkin.loading { animation: pulse 1s infinite; }
+
+                .agenda-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+                .agenda-title { font-size: 1.125rem; font-weight: 600; color: white; }
+                .agenda-link { font-size: 0.75rem; color: var(--primary); text-decoration: none; font-weight: 500; }
+                .agenda-empty { text-align: center; padding: 2rem 0; color: var(--text-muted); font-size: 0.875rem; }
+                .btn-secondary-sm { display: inline-block; margin-top: 1rem; padding: 0.5rem 1rem; background: rgba(16, 185, 129, 0.1); color: var(--primary); border-radius: 0.5rem; text-decoration: none; font-weight: 600; transition: background 0.2s; }
+                .btn-secondary-sm:hover { background: rgba(16, 185, 129, 0.2); }
+                
+                .agenda-list { display: flex; flex-direction: column; gap: 0.75rem; }
+                .agenda-item { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
+                .agenda-item-info h4 { font-size: 0.9375rem; color: white; margin-bottom: 0.25rem; }
+                .agenda-item-info p { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.125rem; }
+                
+                .agenda-actions { position: relative; }
+                .btn-calendar-trigger { background: transparent; border: 1px solid var(--border); color: var(--text-muted); font-size: 11px; padding: 0.25rem 0.5rem; border-radius: 0.375rem; display: flex; align-items: center; gap: 0.25rem; cursor: pointer; }
+                .btn-calendar-trigger:hover { border-color: var(--primary); color: var(--primary); }
+                
+                .dropdown { position: relative; }
+                .dropdown-menu { display: none; position: absolute; right: 0; top: 100%; margin-top: 0.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 0.5rem; min-width: 140px; z-index: 100; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5); }
+                .dropdown:hover .dropdown-menu { display: block; }
+                .dropdown-menu a { display: block; padding: 0.625rem 1rem; font-size: 0.75rem; color: var(--text-main); text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.02); }
+                .dropdown-menu a:last-child { border-bottom: none; }
+                .dropdown-menu a:hover { background: rgba(255,255,255,0.05); color: var(--primary); }
+
+                @media (max-width: 1024px) {
+                    .dashboard-grid { grid-template-columns: 1fr; }
+                }
+            `}</style>
+    </div>
+  );
 }

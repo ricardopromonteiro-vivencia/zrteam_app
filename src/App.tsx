@@ -9,6 +9,9 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Classes from './pages/Classes';
 import CheckIn from './pages/CheckIn';
+import Athletes from './pages/Athletes';
+import Settings from './pages/Settings';
+import Terms from './pages/Terms';
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -40,6 +43,7 @@ function App() {
           path="/"
           element={!session ? <Login /> : <Navigate to="/dashboard" />}
         />
+        <Route path="/termos" element={<Terms />} />
 
         {/* Rotas Protegidas com Layout */}
         <Route element={session ? <Layout /> : <Navigate to="/" />}>
@@ -47,6 +51,8 @@ function App() {
           <Route path="/aulas" element={<Classes />} />
           <Route path="/admin/aulas" element={<Classes />} />
           <Route path="/admin/checkin" element={<CheckIn />} />
+          <Route path="/admin/atletas" element={<Athletes />} />
+          <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>
     </Router>
