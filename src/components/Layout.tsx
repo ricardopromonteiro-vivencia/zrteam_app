@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { LogOut, Home, Calendar, Users, Activity, Settings, ShieldCheck } from 'lucide-react';
+import { LogOut, Home, Calendar, Users, Activity, Settings, ShieldCheck, Menu, X } from 'lucide-react';
 import logo from '../assets/logo.png';
 
 export default function Layout() {
   const [profile, setProfile] = useState<any>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    // Fechar a sidebar quando a rota muda (útil em mobile)
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     async function loadSession() {
@@ -79,9 +85,27 @@ export default function Layout() {
 
   return (
     <div className="layout-container">
-      <nav className="sidebar">
+      {/* Botão Hamburger (Apenas Mobile) */}
+      <header className="mobile-header">
+        <button className="hamburger-btn" onClick={() => setIsSidebarOpen(true)}>
+          <Menu size={24} />
+        </button>
+        <img src={logo} alt="ZR Team" className="mobile-header-logo" />
+      </header>
+
+      {/* Overlay (Apenas Mobile) */}
+      {isSidebarOpen && (
+        <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)} />
+      )}
+
+      <nav className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <img src={logo} alt="ZR Team" className="sidebar-logo" />
+          <div className="sidebar-header-top">
+            <img src={logo} alt="ZR Team" className="sidebar-logo" />
+            <button className="close-sidebar-btn" onClick={() => setIsSidebarOpen(false)}>
+              <X size={24} />
+            </button>
+          </div>
           <span className="role-badge">{profile.role}</span>
         </div>
 
@@ -126,13 +150,61 @@ export default function Layout() {
           display: flex;
           min-height: 100vh;
         }
+        
+        /* Mobile Header */
+        .mobile-header {
+          display: none;
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 60px;
+          background-color: var(--bg-card);
+          border-bottom: 1px solid var(--border);
+          padding: 0 1rem;
+          align-items: center;
+          justify-content: space-between;
+          z-index: 50;
+        }
+        .hamburger-btn {
+          color: var(--text-main);
+          background: none;
+          border: none;
+          padding: 0.5rem;
+          cursor: pointer;
+        }
+        .mobile-header-logo {
+          height: 40px;
+        }
+
         .sidebar {
           width: 250px;
           background-color: var(--bg-card);
           border-right: 1px solid var(--border);
           display: flex;
           flex-direction: column;
+          z-index: 100;
+          transition: transform 0.3s ease;
         }
+        .sidebar-header-top {
+          display: flex;
+          width: 100%;
+          justify-content: center;
+          align-items: center;
+          position: relative;
+        }
+        .close-sidebar-btn {
+          display: none;
+          position: absolute;
+          right: 0;
+          top: 0;
+          color: var(--text-muted);
+          background: none;
+          border: none;
+          padding: 0.5rem;
+          cursor: pointer;
+        }
+        
         .sidebar-header {
           padding: 1.5rem;
           border-bottom: 1px solid var(--border);
@@ -212,6 +284,9 @@ export default function Layout() {
         }
         .btn-logout {
           color: var(--text-muted);
+          background: none;
+          border: none;
+          cursor: pointer;
         }
         .btn-logout:hover {
           color: var(--danger);
@@ -229,23 +304,43 @@ export default function Layout() {
           justify-content: center;
           color: var(--text-muted);
         }
+
+        /* Mobile Adjustments */
         @media (max-width: 768px) {
-          .layout-container {
-            flex-direction: column;
+          .mobile-header {
+            display: flex;
           }
           .sidebar {
-            width: 100%;
-            height: auto;
-            border-right: none;
-            border-bottom: 1px solid var(--border);
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 280px;
+            transform: translateX(-100%);
+            box-shadow: 10px 0 20px rgba(0,0,0,0.5);
           }
-          .sidebar-nav {
-            display: flex;
-            overflow-x: auto;
-            padding: 0.5rem;
+          .sidebar.open {
+            transform: translateX(0);
           }
-          .sidebar-header, .sidebar-footer {
+          .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(2px);
+            z-index: 90;
+          }
+          .close-sidebar-btn {
+            display: block;
+          }
+          .main-content {
             padding: 1rem;
+            margin-top: 60px; /* Espaço para a barra fixa de topo em mobile */
+          }
+          .sidebar-header {
+            padding-top: 2rem;
           }
         }
       `}</style>
