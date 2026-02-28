@@ -34,6 +34,7 @@ export default function Classes() {
                 professor_id(full_name),
                 class_bookings(count)
             `)
+            .or(`school_id.eq.${profile.school_id},school_id.is.null`)
             .order('date', { ascending: true })
             .order('start_time', { ascending: true });
 
@@ -60,7 +61,8 @@ export default function Classes() {
                 start_time: startTime,
                 end_time: endTime,
                 capacity: parseInt(capacity),
-                professor_id: profile.id
+                professor_id: profile.id,
+                school_id: profile.school_id
             }
         ]);
 
@@ -115,7 +117,7 @@ export default function Classes() {
     };
 
     const getCalendarLinks = (cls: any) => {
-        const title = encodeURIComponent(`Treino de Jiu Jitsu: ${cls.title}`);
+        const title = encodeURIComponent(`Treino de Jiu Jitsu: ${cls.title} `);
         const dateStr = cls.date.replace(/-/g, '');
         const start = cls.start_time.replace(/:/g, '') + '00';
         const end = cls.end_time.replace(/:/g, '') + '00';

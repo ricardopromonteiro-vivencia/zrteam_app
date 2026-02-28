@@ -16,30 +16,36 @@ export default function CheckIn() {
 
     // Buscar aulas e atletas da própria escola
     useEffect(() => {
-        if (!profile?.school_id) return;
-
         const today = new Date().toISOString().split('T')[0];
 
-        // Aulas de hoje da escola
-        supabase
+        // Aulas de hoje: Filtrar por escola do professor ou mostrar órfãs (null)
+        let classesQuery = supabase
             .from('classes')
             .select('*')
-            .eq('date', today)
-            .eq('school_id', profile.school_id)
-            .then(({ data }) => {
-                if (data) setTodayClasses(data);
-            });
+            .eq('date', today);
 
-        // Todos os atletas da escola
-        supabase
-            .from('profiles')
-            .select('id, full_name, belt, degrees')
-            .eq('school_id', profile.school_id)
-            .eq('role', 'Atleta')
-            .order('full_name')
-            .then(({ data }) => {
-                if (data) setAllSchoolAthletes(data);
-            });
+        if (profile?.school_id) {
+            classesQuery = classesQuery.or(`school_id.eq.${profile.school_id},school_id.is.null`);
+        } else {
+            classesQuery = classesQuery.is('school_id', null);
+        }
+
+        classesQuery.then(({ data }) => {
+            if (data) setTodayClasses(data);
+        });
+
+        // Todos os atletas da escola (se o professor tiver escola)
+        if (profile?.school_id) {
+            supabase
+                .from('profiles')
+                .select('id, full_name, belt, degrees')
+                .eq('school_id', profile.school_id)
+                .eq('role', 'Atleta')
+                .order('full_name')
+                .then(({ data }) => {
+                    if (data) setAllSchoolAthletes(data);
+                });
+        }
     }, [profile]);
 
     // Buscar inscritos quando uma aula é selecionada
