@@ -13,8 +13,10 @@ interface Profile {
     belt: string;
     degrees: number;
     attended_classes: number;
-    nfc_uid: string | null;
+    school_id: string | null;
+    date_of_birth: string | null;
     created_at: string;
+    school?: { name: string };
 }
 
 export default function Athletes() {
@@ -29,18 +31,48 @@ export default function Athletes() {
 
     const isAdmin = myProfile?.role === 'Admin';
 
+    const [schools, setSchools] = useState<any[]>([]);
+    const [selectedSchool, setSelectedSchool] = useState<string>('all');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
     useEffect(() => {
         fetchAthletes();
-    }, []);
+        loadSchools();
+    }, [selectedSchool, sortOrder]);
+
+    async function loadSchools() {
+        const { data } = await supabase.from('schools').select('id, name');
+        if (data) setSchools(data);
+    }
 
     async function fetchAthletes() {
         setLoading(true);
-        const { data, error } = await supabase
+        let query = supabase
             .from('profiles')
-            .select('*')
-            .order('full_name');
+            .select('*, school:schools(name)')
+            .order('full_name', { ascending: sortOrder === 'asc' });
+
+        if (myProfile?.role === 'Professor') {
+            query = query.eq('school_id', myProfile.school_id);
+        } else if (isAdmin && selectedSchool !== 'all') {
+            query = query.eq('school_id', selectedSchool);
+        }
+
+        const { data, error } = await query;
         if (!error && data) setAthletes(data);
         setLoading(false);
+    }
+
+    function calculateAge(dob: string | null) {
+        if (!dob) return '—';
+        const birthDate = new Date(dob);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        return age;
     }
 
     function startEdit(athlete: Profile) {
@@ -64,7 +96,8 @@ export default function Athletes() {
                 belt: editForm.belt,
                 degrees: Number(editForm.degrees),
                 attended_classes: Number(editForm.attended_classes),
-                nfc_uid: editForm.nfc_uid || null,
+                school_id: editForm.school_id,
+                date_of_birth: editForm.date_of_birth,
             })
             .eq('id', editingId);
 
@@ -99,15 +132,27 @@ export default function Athletes() {
                         {athletes.length} utilizador{athletes.length !== 1 ? 'es' : ''} registado{athletes.length !== 1 ? 's' : ''}
                     </p>
                 </div>
-                <div className="search-box">
-                    <Search size={16} style={{ color: 'var(--text-muted)' }} />
-                    <input
-                        type="text"
-                        placeholder="Pesquisar por nome, faixa ou role..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        className="search-input"
-                    />
+                <div className="header-actions">
+                    {isAdmin && (
+                        <select
+                            className="filter-select"
+                            value={selectedSchool}
+                            onChange={e => setSelectedSchool(e.target.value)}
+                        >
+                            <option value="all">Todas as Escolas</option>
+                            {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    )}
+                    <div className="search-box">
+                        <Search size={16} style={{ color: 'var(--text-muted)' }} />
+                        <input
+                            type="text"
+                            placeholder="Pesquisar..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="search-input"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -129,12 +174,15 @@ export default function Athletes() {
                     <table className="athletes-table">
                         <thead>
                             <tr>
-                                <th>Nome</th>
+                                <th onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} style={{ cursor: 'pointer' }}>
+                                    Nome {sortOrder === 'asc' ? '↑' : '↓'}
+                                </th>
+                                <th>Escola</th>
+                                <th>Idade</th>
                                 <th>Role</th>
                                 <th>Faixa</th>
                                 <th>Graus</th>
                                 <th>Aulas</th>
-                                <th>NFC UID</th>
                                 <th>Membro desde</th>
                                 {isAdmin && <th>Ações</th>}
                             </tr>
@@ -149,6 +197,24 @@ export default function Athletes() {
                                                     className="table-input"
                                                     value={editForm.full_name || ''}
                                                     onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))}
+                                                />
+                                            </td>
+                                            <td>
+                                                <select
+                                                    className="table-select"
+                                                    value={editForm.school_id || ''}
+                                                    onChange={e => setEditForm(f => ({ ...f, school_id: e.target.value }))}
+                                                >
+                                                    <option value="">Sem Escola</option>
+                                                    {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <input
+                                                    className="table-input"
+                                                    type="date"
+                                                    value={editForm.date_of_birth || ''}
+                                                    onChange={e => setEditForm(f => ({ ...f, date_of_birth: e.target.value }))}
                                                 />
                                             </td>
                                             <td>
@@ -185,14 +251,6 @@ export default function Athletes() {
                                                     onChange={e => setEditForm(f => ({ ...f, attended_classes: +e.target.value }))}
                                                 />
                                             </td>
-                                            <td>
-                                                <input
-                                                    className="table-input"
-                                                    value={editForm.nfc_uid || ''}
-                                                    placeholder="Sem NFC"
-                                                    onChange={e => setEditForm(f => ({ ...f, nfc_uid: e.target.value }))}
-                                                />
-                                            </td>
                                             <td>{new Date(athlete.created_at).toLocaleDateString('pt-PT')}</td>
                                             <td>
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -208,6 +266,8 @@ export default function Athletes() {
                                     ) : (
                                         <>
                                             <td className="athlete-name">{athlete.full_name}</td>
+                                            <td className="text-muted">{athlete.school?.name || '—'}</td>
+                                            <td>{calculateAge(athlete.date_of_birth)}</td>
                                             <td>
                                                 <span className={`role-pill role-${athlete.role?.toLowerCase()}`}>{athlete.role}</span>
                                             </td>
@@ -222,7 +282,6 @@ export default function Athletes() {
                                             </td>
                                             <td className="text-center">{athlete.degrees}°</td>
                                             <td className="text-center">{athlete.attended_classes}</td>
-                                            <td className="text-muted">{athlete.nfc_uid || '—'}</td>
                                             <td className="text-muted">{new Date(athlete.created_at).toLocaleDateString('pt-PT')}</td>
                                             {isAdmin && (
                                                 <td>
@@ -250,6 +309,14 @@ export default function Athletes() {
           display: flex; justify-content: space-between; align-items: flex-start;
           gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;
         }
+        .header-actions {
+          display: flex; gap: 1rem; flex-wrap: wrap;
+        }
+        .filter-select {
+          background: var(--bg-card); border: 1px solid var(--border);
+          border-radius: 0.5rem; padding: 0.5rem 1rem;
+          color: var(--text-main); font-size: 0.875rem;
+        }
         .search-box {
           display: flex; align-items: center; gap: 0.5rem;
           background: var(--bg-card); border: 1px solid var(--border);
@@ -257,7 +324,7 @@ export default function Athletes() {
         }
         .search-input {
           background: transparent; border: none; outline: none;
-          color: var(--text-main); font-size: 0.875rem; width: 260px;
+          color: var(--text-main); font-size: 0.875rem; width: 180px;
         }
         .feedback-bar {
           padding: 0.75rem 1rem; border-radius: 0.5rem;

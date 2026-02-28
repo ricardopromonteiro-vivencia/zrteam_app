@@ -1,8 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { LogIn, UserPlus, KeyRound } from 'lucide-react';
 
 import logo from '../assets/logo.png';
+
+const BELTS = [
+    'Cinza/ branco', 'Cinza', 'Cinza/ Preto',
+    'Amarelo / Branco', 'Amarelo', 'Amarelo/ preto',
+    'Laranja/ Branco', 'Laranja', 'Laranja/ preto',
+    'Verde / Branco', 'Verde', 'Verde / Preto',
+    'Branco', 'Azul', 'Roxo', 'Marrom', 'Preto'
+];
 
 type Mode = 'login' | 'register' | 'recover';
 
@@ -12,10 +20,22 @@ export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
+    const [schoolId, setSchoolId] = useState('');
+    const [dateOfBirth, setDateOfBirth] = useState('');
+    const [belt, setBelt] = useState('Branco');
+    const [schools, setSchools] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+    useEffect(() => {
+        async function loadSchools() {
+            const { data } = await supabase.from('schools').select('id, name').order('name');
+            if (data) setSchools(data);
+        }
+        loadSchools();
+    }, []);
 
     function switchMode(m: Mode) {
         setMode(m);
@@ -43,7 +63,13 @@ export default function Login() {
                     email,
                     password,
                     options: {
-                        data: { full_name: fullName, role: 'Atleta' }
+                        data: {
+                            full_name: fullName,
+                            role: 'Atleta',
+                            school_id: schoolId,
+                            date_of_birth: dateOfBirth,
+                            belt: belt
+                        }
                     }
                 });
                 if (error) throw error;
@@ -125,18 +151,64 @@ export default function Login() {
                     )}
 
                     {mode === 'register' && (
-                        <div className="form-group checkbox-group">
-                            <input
-                                id="terms"
-                                type="checkbox"
-                                checked={acceptedTerms}
-                                onChange={(e) => setAcceptedTerms(e.target.checked)}
-                                required
-                            />
-                            <label htmlFor="terms" className="checkbox-label">
-                                Aceito os <a href="/termos" target="_blank" rel="noreferrer">Termos e Condições</a>
-                            </label>
-                        </div>
+                        <>
+                            <div className="form-row">
+                                <div className="form-group half">
+                                    <label className="form-label" htmlFor="school">Escola</label>
+                                    <select
+                                        id="school"
+                                        className="form-input"
+                                        value={schoolId}
+                                        onChange={(e) => setSchoolId(e.target.value)}
+                                        required
+                                    >
+                                        <option value="">Seleciona...</option>
+                                        {schools.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="form-group half">
+                                    <label className="form-label" htmlFor="dob">Data de Nascimento</label>
+                                    <input
+                                        id="dob"
+                                        type="date"
+                                        className="form-input"
+                                        value={dateOfBirth}
+                                        onChange={(e) => setDateOfBirth(e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label" htmlFor="belt">Faixa Cor</label>
+                                <select
+                                    id="belt"
+                                    className="form-input"
+                                    value={belt}
+                                    onChange={(e) => setBelt(e.target.value)}
+                                    required
+                                >
+                                    {BELTS.map(b => (
+                                        <option key={b} value={b}>{b}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="form-group checkbox-group">
+                                <input
+                                    id="terms"
+                                    type="checkbox"
+                                    checked={acceptedTerms}
+                                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                                    required
+                                />
+                                <label htmlFor="terms" className="checkbox-label">
+                                    Aceito os <a href="/termos" target="_blank" rel="noreferrer">Termos e Condições</a>
+                                </label>
+                            </div>
+                        </>
                     )}
 
                     <button type="submit" className="btn-primary" disabled={loading}>
@@ -247,6 +319,14 @@ export default function Login() {
                 .checkbox-label a {
                     color: var(--primary);
                     text-decoration: underline;
+                }
+                .form-row {
+                    display: flex;
+                    gap: 1rem;
+                    margin-bottom: 0.5rem;
+                }
+                .form-group.half {
+                    flex: 1;
                 }
             `}</style>
         </div>

@@ -12,6 +12,9 @@ import CheckIn from './pages/CheckIn';
 import Athletes from './pages/Athletes';
 import Settings from './pages/Settings';
 import Terms from './pages/Terms';
+import Help from './pages/Help';
+import Schools from './pages/Schools';
+import ResetPassword from './pages/ResetPassword';
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -44,6 +47,7 @@ function App() {
           element={!session ? <Login /> : <Navigate to="/dashboard" />}
         />
         <Route path="/termos" element={<Terms />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Rotas Protegidas com Layout */}
         <Route element={session ? <Layout /> : <Navigate to="/" />}>
@@ -52,7 +56,9 @@ function App() {
           <Route path="/admin/aulas" element={<Classes />} />
           <Route path="/admin/checkin" element={<CheckIn />} />
           <Route path="/admin/atletas" element={<Athletes />} />
+          <Route path="/admin/escolas" element={<Schools />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/ajuda" element={<Help />} />
         </Route>
       </Routes>
     </Router>

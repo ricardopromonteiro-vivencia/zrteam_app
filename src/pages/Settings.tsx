@@ -54,6 +54,14 @@ export default function Settings() {
                             <p><span className="role-badge">{profile.role}</span></p>
                         </div>
                         <div className="info-item">
+                            <label>Escola</label>
+                            <p>{profile.school?.name || 'Não associada'}</p>
+                        </div>
+                        <div className="info-item">
+                            <label>Data de Nascimento</label>
+                            <p>{profile.date_of_birth ? new Date(profile.date_of_birth).toLocaleDateString('pt-PT') : '—'}</p>
+                        </div>
+                        <div className="info-item">
                             <label>Faixa / Graduação</label>
                             <p>{profile.belt} - {profile.degrees} Graus</p>
                         </div>

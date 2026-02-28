@@ -1,14 +1,33 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { LogOut, Home, Calendar, Users, Activity, Settings, ShieldCheck, Menu, X } from 'lucide-react';
+import { LogOut, Home, Calendar, Users, Activity, Settings, ShieldCheck, Menu, X, Building2, HelpCircle, Download } from 'lucide-react';
 import logo from '../assets/logo.png';
 
 export default function Layout() {
   const [profile, setProfile] = useState<any>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    const handleBeforeInstall = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   useEffect(() => {
     // Fechar a sidebar quando a rota muda (útil em mobile)
@@ -25,7 +44,7 @@ export default function Layout() {
 
       let { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*, school:schools(name)')
         .eq('id', session.user.id)
         .single();
 
@@ -77,6 +96,7 @@ export default function Layout() {
       { name: 'Dashboard', path: '/dashboard', icon: Activity },
       { name: 'Gestão de Aulas', path: '/admin/aulas', icon: Calendar },
       { name: 'Atletas', path: '/admin/atletas', icon: Users },
+      { name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 },
       { name: 'Check-in', path: '/admin/checkin', icon: Activity },
       { name: 'Definições', path: '/settings', icon: Settings },
     ];
@@ -123,6 +143,14 @@ export default function Layout() {
           <Link to="/termos" className="nav-link terms-nav-link">
             <ShieldCheck size={20} /> Termos e Condições
           </Link>
+          <Link to="/ajuda" className={`nav-link help-nav-link ${location.pathname === '/ajuda' ? 'active' : ''}`}>
+            <HelpCircle size={20} /> Ajuda & Suporte
+          </Link>
+          {deferredPrompt && (
+            <button onClick={handleInstallClick} className="nav-link install-nav-btn">
+              <Download size={20} /> Instalar App
+            </button>
+          )}
         </div>
 
         <div className="sidebar-footer">
@@ -251,6 +279,21 @@ export default function Layout() {
           color: var(--primary);
           border-right: 3px solid var(--primary);
           text-decoration: none;
+        }
+        .install-nav-btn {
+          width: 100%;
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-family: inherit;
+          font-size: inherit;
+          color: var(--primary) !important;
+          font-weight: 700;
+          margin-top: 0.5rem;
+          background: rgba(16, 185, 129, 0.05) !important;
+        }
+        .install-nav-btn:hover {
+          background: rgba(16, 185, 129, 0.1) !important;
         }
         .sidebar-footer {
           padding: 1.5rem;

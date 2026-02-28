@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { Activity, Trophy, Calendar, Clock, ExternalLink } from 'lucide-react';
+import { Activity, Calendar, Clock, ExternalLink, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const GRADUATION_RULES: Record<string, { totalForNextBelt: number, classesPerDegree: number, nextBelt: string }> = {
@@ -13,9 +13,14 @@ const GRADUATION_RULES: Record<string, { totalForNextBelt: number, classesPerDeg
 
 export default function Dashboard() {
   const { profile } = useOutletContext<{ profile: any }>();
-  const [stats, setStats] = useState({ weekClasses: 0, nextClasses: [] as any[] });
+  const [stats, setStats] = useState({
+    weekClasses: 0,
+    nextClasses: [] as any[],
+    weeklyAttendance: [] as { day: string, count: number }[]
+  });
   const [loading, setLoading] = useState(true);
-  const [checkinLoading, setCheckinLoading] = useState(false);
+  const [checkinStep, setCheckinStep] = useState<'idle' | 'locating' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     if (profile) {
@@ -57,46 +62,89 @@ export default function Dashboard() {
       .order('classes(date)', { ascending: true })
       .limit(3);
 
-    setStats({
+    // 3. Afluência semanal (para Admin/Professor)
+    if (profile.role !== 'Atleta') {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(now.getDate() - 7);
+
+      let attendanceQuery = supabase
+        .from('class_bookings')
+        .select('created_at')
+        .eq('status', 'Presente')
+        .gte('created_at', sevenDaysAgo.toISOString());
+
+      if (profile.role === 'Professor') {
+        attendanceQuery = attendanceQuery.eq('profiles!inner(school_id)', profile.school_id);
+      }
+
+      const { data: attendanceData } = await attendanceQuery;
+
+      if (attendanceData) {
+        const counts: Record<string, number> = {};
+        for (let i = 0; i < 7; i++) {
+          const d = new Date();
+          d.setDate(now.getDate() - i);
+          counts[d.toLocaleDateString('pt-PT', { weekday: 'short' })] = 0;
+        }
+
+        attendanceData.forEach(b => {
+          const day = new Date(b.created_at).toLocaleDateString('pt-PT', { weekday: 'short' });
+          if (day in counts) counts[day]++;
+        });
+
+        const weeklyAttendance = Object.entries(counts).map(([day, count]) => ({ day, count })).reverse();
+        setStats(prev => ({ ...prev, weeklyAttendance }));
+      }
+    }
+
+    setStats(prev => ({
+      ...prev,
       weekClasses: weekCount || 0,
       nextClasses: bookings?.map((b: any) => ({ ...b.classes, booking_id: b.id })).filter(Boolean) || []
-    });
+    }));
     setLoading(false);
   }
 
   const handleSecureCheckin = async () => {
-    setCheckinLoading(true);
+    setCheckinStep('locating');
+    setErrorMessage('');
+
     try {
-      // 1. Obter Localização
+      // 1. Obter Localização com Timeout de 10s
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
-          timeout: 5000,
+          timeout: 10000,
           maximumAge: 0
         });
       });
 
-      // 2. Obter IP Público
+      // 2. Obter IP
       const ipResponse = await fetch('https://api.ipify.org?format=json');
       const ipData = await ipResponse.json();
 
-      // 3. Chamar RPC no Supabase
-      const { data } = await supabase.rpc('secure_checkin', {
+      // 3. Chamar RPC
+      const { data, error: rpcError } = await supabase.rpc('secure_checkin', {
         p_lat: position.coords.latitude,
         p_lng: position.coords.longitude,
         p_client_ip: ipData.ip
       });
 
+      if (rpcError) throw rpcError;
+
       if (data?.success) {
-        alert(`✅ ${data.message}: ${data.class_title}`);
-        fetchDashboardData();
+        setCheckinStep('success');
+        setTimeout(() => {
+          setCheckinStep('idle');
+          fetchDashboardData();
+        }, 3000);
       } else {
-        alert(`❌ Erro: ${data?.error || 'Falha no check-in'}`);
+        setCheckinStep('error');
+        setErrorMessage(data?.error || 'Falha no check-in');
       }
     } catch (err: any) {
-      alert('❌ Erro: Por favor ativa o GPS e tenta novamente.');
-    } finally {
-      setCheckinLoading(false);
+      setCheckinStep('error');
+      setErrorMessage(err.code === 1 ? 'Permissão de GPS negada.' : 'Erro ao obter localização. Tenta novamente.');
     }
   };
 
@@ -121,21 +169,41 @@ export default function Dashboard() {
   if (profile.role === 'Admin' || profile.role === 'Professor') {
     return (
       <div className="dashboard animate-fade-in">
-        <h1 className="page-title">Visão Geral - {profile.role}</h1>
+        <header className="dashboard-welcome">
+          <h1 className="page-title">Olá, Professor {profile.full_name.split(' ')[0]}!</h1>
+          <p className="welcome-text">Pronto para liderar o tatame hoje?</p>
+        </header>
+
         <div className="stats-grid">
           <div className="stat-card">
             <Activity className="stat-icon" />
             <div className="stat-content">
-              <h3>Aulas Totais</h3>
+              <h3>Aulas Lecionadas</h3>
               <p className="stat-value">{profile.attended_classes}</p>
             </div>
           </div>
           <div className="stat-card">
-            <Trophy className="stat-icon" />
+            <Users className="stat-icon" />
             <div className="stat-content">
-              <h3>Nível</h3>
-              <p className="stat-value">{profile.belt} {profile.degrees}°</p>
+              <h3>Alunos na Escola</h3>
+              <p className="stat-value">{profile.school?.name || 'Várias'}</p>
             </div>
+          </div>
+        </div>
+
+        <div className="chart-container">
+          <h3 className="chart-title">Afluência de Alunos (Últimos 7 dias)</h3>
+          <div className="bar-chart">
+            {stats.weeklyAttendance.map((item, idx) => (
+              <div key={idx} className="bar-wrapper">
+                <div className="bar-label">{item.count}</div>
+                <div
+                  className="bar-fill"
+                  style={{ height: `${Math.max(10, (item.count / (Math.max(...stats.weeklyAttendance.map(a => a.count)) || 1)) * 100)}%` }}
+                ></div>
+                <div className="bar-day">{item.day}</div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -144,7 +212,10 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard animate-fade-in">
-      <h1 className="page-title">O Teu Treino</h1>
+      <header className="dashboard-welcome">
+        <h1 className="page-title">Olá, {profile.full_name.split(' ')[0]}!</h1>
+        <p className="welcome-text">Bora completar mais um treino de hoje?</p>
+      </header>
 
       <div className="stats-grid">
         <div className="stat-card">
@@ -198,12 +269,19 @@ export default function Dashboard() {
               <p>Confirmamos a tua presença automaticamente através da tua localização (GPS).</p>
             </div>
             <button
-              className={`btn-secure-checkin ${checkinLoading ? 'loading' : ''}`}
+              className={`btn-secure-checkin step-${checkinStep}`}
               onClick={handleSecureCheckin}
-              disabled={checkinLoading}
+              disabled={checkinStep === 'locating' || checkinStep === 'success'}
             >
-              {checkinLoading ? 'A validar...' : 'Confirmar Presença'}
+              {checkinStep === 'locating' ? (
+                <span className="loading-spinner">A aguardar localização...</span>
+              ) : checkinStep === 'success' ? (
+                '✅ Check-in Concluído!'
+              ) : (
+                'Confirmar Presença'
+              )}
             </button>
+            {checkinStep === 'error' && <p className="checkin-error-text">{errorMessage}</p>}
           </div>
         </div>
 
@@ -260,6 +338,22 @@ export default function Dashboard() {
                 .stat-icon { width: 48px; height: 48px; padding: 12px; border-radius: 0.75rem; background: rgba(16, 185, 129, 0.1); color: var(--primary); }
                 .stat-content h3 { font-size: 0.875rem; color: var(--text-muted); font-weight: 500; margin-bottom: 0.25rem; }
                 .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--text-main); }
+                
+                .dashboard-welcome { margin-bottom: 2rem; }
+                .welcome-text { color: var(--text-muted); font-size: 1rem; margin-top: -1.5rem; }
+
+                .chart-container { background: var(--bg-card); padding: 1.5rem; border-radius: 1rem; border: 1px solid var(--border); margin-top: 1.5rem; }
+                .chart-title { font-size: 1rem; color: white; margin-bottom: 2rem; }
+                .bar-chart { display: flex; align-items: flex-end; justify-content: space-around; height: 150px; padding-top: 2rem; }
+                .bar-wrapper { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; flex: 1; }
+                .bar-fill { width: 30px; background: linear-gradient(180deg, var(--primary) 0%, rgba(16, 185, 129, 0.3) 100%); border-radius: 4px 4px 0 0; transition: height 0.3s ease; }
+                .bar-label { font-size: 0.75rem; color: var(--primary); font-weight: 700; }
+                .bar-day { font-size: 0.7rem; color: var(--text-muted); text-transform: capitalize; }
+
+                .checkin-error-text { color: var(--danger); font-size: 0.75rem; margin-top: 0.5rem; text-align: center; }
+                .loading-spinner { display: flex; align-items: center; gap: 0.5rem; }
+                .btn-secure-checkin.step-locating { background: var(--border); color: var(--text-muted); }
+                .btn-secure-checkin.step-success { background: #10b981; }
                 
                 .dashboard-grid { display: grid; grid-template-columns: 1fr 350px; gap: 1.5rem; align-items: start; }
                 .progression-card, .agenda-card { background: var(--bg-card); padding: 1.5rem; border-radius: 1rem; border: 1px solid var(--border); }
