@@ -1,29 +1,46 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, XCircle, Clock, AlertTriangle, Wifi } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertTriangle, Users, Plus } from 'lucide-react';
 
 export default function CheckIn() {
     const { profile } = useOutletContext<{ profile: any }>();
     const [todayClasses, setTodayClasses] = useState<any[]>([]);
     const [selectedClass, setSelectedClass] = useState<any>(null);
     const [bookings, setBookings] = useState<any[]>([]);
+    const [allSchoolAthletes, setAllSchoolAthletes] = useState<any[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(false);
-    const [nfcUid, setNfcUid] = useState('');
 
     const isAdmin = profile?.role === 'Admin' || profile?.role === 'Professor';
 
-    // Buscar aulas de hoje
+    // Buscar aulas e atletas da própria escola
     useEffect(() => {
+        if (!profile?.school_id) return;
+
         const today = new Date().toISOString().split('T')[0];
+
+        // Aulas de hoje da escola
         supabase
             .from('classes')
             .select('*')
             .eq('date', today)
+            .eq('school_id', profile.school_id)
             .then(({ data }) => {
                 if (data) setTodayClasses(data);
             });
-    }, []);
+
+        // Todos os atletas da escola
+        supabase
+            .from('profiles')
+            .select('id, full_name, belt, degrees')
+            .eq('school_id', profile.school_id)
+            .eq('role', 'Atleta')
+            .order('full_name')
+            .then(({ data }) => {
+                if (data) setAllSchoolAthletes(data);
+            });
+    }, [profile]);
 
     // Buscar inscritos quando uma aula é selecionada
     const loadBookings = async (cls: any) => {
@@ -74,30 +91,43 @@ export default function CheckIn() {
         loadBookings(selectedClass);
     };
 
-    // Check-in via NFC (simula a leitura do UID do cartão)
-    const handleNfcCheckIn = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedClass || !nfcUid.trim()) return;
+    // Check-in para atleta que NÃO estava inscrito (Inscreve e marca presença)
+    const handleQuickCheckIn = async (athlete: any) => {
+        if (!selectedClass) return;
 
-        // Encontrar o booking do utilizador com esse NFC UID
-        const booking = bookings.find(b => b.user_id?.nfc_uid === nfcUid.trim());
+        setLoading(true);
+        // 1. Criar a reserva já como Presente
+        const { error } = await supabase
+            .from('class_bookings')
+            .insert({
+                class_id: selectedClass.id,
+                user_id: athlete.id,
+                status: 'Presente'
+            })
+            .select()
+            .single();
 
-        if (!booking) {
-            alert('Cartão NFC não reconhecido ou atleta não inscrito nesta aula.');
-            setNfcUid('');
-            return;
+        if (error) {
+            if (error.code === '23505') { // Unicidade: já estava inscrito?
+                alert('Este atleta já está na lista de inscritos.');
+            } else {
+                alert('Erro ao registar: ' + error.message);
+            }
+        } else {
+            // 2. Incrementar contador
+            await supabase.rpc('increment_attended_classes', { user_id_param: athlete.id });
+            await loadBookings(selectedClass);
+            setSearchQuery('');
         }
-
-        if (booking.status === 'Presente') {
-            alert(`${booking.user_id.full_name} já tem presença registada.`);
-            setNfcUid('');
-            return;
-        }
-
-        await handleManualCheckIn(booking.id, booking.user_id.id);
-        alert(`✅ Check-in de ${booking.user_id.full_name} registado!`);
-        setNfcUid('');
+        setLoading(false);
     };
+
+    const filteredAthletes = searchQuery.trim().length > 1
+        ? allSchoolAthletes.filter(a =>
+            a.full_name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+            !bookings.some(b => b.user_id?.id === a.id)
+        )
+        : [];
 
     const isClassFinished = (cls: any) => {
         if (!cls) return false;
@@ -140,22 +170,36 @@ export default function CheckIn() {
 
             {selectedClass && (
                 <>
-                    {/* NFC Check-in Input */}
-                    <div className="nfc-panel">
-                        <Wifi size={20} style={{ color: 'var(--primary)' }} />
-                        <form onSubmit={handleNfcCheckIn} style={{ display: 'flex', gap: '0.75rem', flex: 1 }}>
+                    {/* Pesquisa de Atletas para Check-in Direto */}
+                    <div className="search-panel">
+                        <Users size={20} className="text-primary" />
+                        <div style={{ flex: 1, position: 'relative' }}>
                             <input
                                 type="text"
                                 className="form-input"
-                                placeholder="UID do Cartão NFC (manual ou leitura do ESP32)..."
-                                value={nfcUid}
-                                onChange={e => setNfcUid(e.target.value)}
-                                style={{ flex: 1 }}
+                                placeholder="Procurar atleta pelo nome para check-in rápido..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
                             />
-                            <button type="submit" className="btn-primary" style={{ width: 'auto', whiteSpace: 'nowrap' }}>
-                                Validar NFC
-                            </button>
-                        </form>
+
+                            {filteredAthletes.length > 0 && (
+                                <div className="search-results">
+                                    {filteredAthletes.map(athlete => (
+                                        <div
+                                            key={athlete.id}
+                                            className="search-result-item"
+                                            onClick={() => handleQuickCheckIn(athlete)}
+                                        >
+                                            <div className="athlete-info">
+                                                <span className="athlete-name">{athlete.full_name}</span>
+                                                <span className="athlete-belt">{athlete.belt}</span>
+                                            </div>
+                                            <Plus size={18} />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Lista de Inscritos */}
@@ -240,16 +284,44 @@ export default function CheckIn() {
           font-weight: 700;
         }
 
-        .nfc-panel {
+        .search-panel {
           background-color: var(--bg-card);
-          border: 1px solid rgba(16, 185, 129, 0.3);
+          border: 1px solid var(--border);
           border-radius: 0.75rem;
-          padding: 1rem 1.25rem;
+          padding: 0.75rem 1.25rem;
           display: flex;
           align-items: center;
           gap: 1rem;
           margin: 1.5rem 0;
+          position: relative;
         }
+        .search-results {
+          position: absolute;
+          top: calc(100% + 5px);
+          left: 0;
+          right: 0;
+          background: #1a1a1a;
+          border: 1px solid var(--border);
+          border-radius: 0.75rem;
+          z-index: 50;
+          max-height: 250px;
+          overflow-y: auto;
+          box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .search-result-item {
+          padding: 0.75rem 1rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          cursor: pointer;
+          border-bottom: 1px solid var(--border);
+          transition: background 0.2s;
+        }
+        .search-result-item:last-child { border-bottom: none; }
+        .search-result-item:hover { background: rgba(16, 185, 129, 0.1); }
+        .athlete-info { display: flex; flex-direction: column; gap: 0.1rem; }
+        .athlete-name { font-weight: 600; font-size: 0.9rem; }
+        .athlete-belt { font-size: 0.75rem; color: var(--text-muted); }
 
         .bookings-panel {
           background-color: var(--bg-card);
