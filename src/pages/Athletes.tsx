@@ -3,7 +3,14 @@ import { supabase } from '../lib/supabase';
 import { useOutletContext } from 'react-router-dom';
 import { Edit2, Save, X, Search, Users } from 'lucide-react';
 
-const BELTS = ['Branca', 'Azul', 'Roxa', 'Marrom', 'Preta', 'Coral', 'Vermelha'];
+const BELTS = [
+    'Cinza/ branco', 'Cinza', 'Cinza/ Preto',
+    'Amarelo / Branco', 'Amarelo', 'Amarelo/ preto',
+    'Laranja/ Branco', 'Laranja', 'Laranja/ preto',
+    'Verde / Branco', 'Verde', 'Verde / Preto',
+    'Branco', 'Azul', 'Roxo', 'Marrom', 'Preto'
+];
+
 const ROLES = ['Atleta', 'Professor', 'Admin'];
 
 interface Profile {
@@ -15,8 +22,10 @@ interface Profile {
     attended_classes: number;
     school_id: string | null;
     date_of_birth: string | null;
+    assigned_professor_id: string | null;
     created_at: string;
     school?: { name: string };
+    assigned_professor?: { full_name: string };
 }
 
 export default function Athletes() {
@@ -32,6 +41,7 @@ export default function Athletes() {
     const isAdmin = myProfile?.role === 'Admin';
 
     const [schools, setSchools] = useState<any[]>([]);
+    const [professors, setProfessors] = useState<any[]>([]);
     const [selectedSchool, setSelectedSchool] = useState<string>('all');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -41,15 +51,18 @@ export default function Athletes() {
     }, [selectedSchool, sortOrder]);
 
     async function loadSchools() {
-        const { data } = await supabase.from('schools').select('id, name');
-        if (data) setSchools(data);
+        const { data: schoolsData } = await supabase.from('schools').select('id, name');
+        if (schoolsData) setSchools(schoolsData);
+
+        const { data: profsData } = await supabase.from('profiles').select('id, full_name, school_id').eq('role', 'Professor');
+        if (profsData) setProfessors(profsData);
     }
 
     async function fetchAthletes() {
         setLoading(true);
         let query = supabase
             .from('profiles')
-            .select('*, school:schools(name)')
+            .select('*, school:schools(name), assigned_professor:profiles!assigned_professor_id(full_name)')
             .order('full_name', { ascending: sortOrder === 'asc' });
 
         if (myProfile?.role === 'Professor') {
@@ -98,6 +111,7 @@ export default function Athletes() {
                 attended_classes: Number(editForm.attended_classes),
                 school_id: editForm.school_id,
                 date_of_birth: editForm.date_of_birth,
+                assigned_professor_id: editForm.assigned_professor_id
             })
             .eq('id', editingId);
 
@@ -119,8 +133,12 @@ export default function Athletes() {
     );
 
     const beltColors: Record<string, string> = {
-        Branca: '#ffffff', Azul: '#2563eb', Roxa: '#9333ea',
-        Marrom: '#92400e', Preta: '#111827', Coral: '#f97316', Vermelha: '#dc2626'
+        'Cinza/ branco': '#d1d5db', 'Cinza': '#9ca3af', 'Cinza/ Preto': '#4b5563',
+        'Amarelo / Branco': '#fef08a', 'Amarelo': '#facc15', 'Amarelo/ preto': '#a16207',
+        'Laranja/ Branco': '#fed7aa', 'Laranja': '#fb923c', 'Laranja/ preto': '#9a3412',
+        'Verde / Branco': '#bbf7d0', 'Verde': '#22c55e', 'Verde / Preto': '#14532d',
+        'Branco': '#ffffff', 'Azul': '#2563eb', 'Roxo': '#9333ea',
+        'Marrom': '#92400e', 'Preto': '#111827'
     };
 
     return (
@@ -181,6 +199,7 @@ export default function Athletes() {
                                 <th>Idade</th>
                                 <th>Role</th>
                                 <th>Faixa</th>
+                                <th>Professor</th>
                                 <th>Graus</th>
                                 <th>Aulas</th>
                                 <th>Membro desde</th>
@@ -236,6 +255,18 @@ export default function Athletes() {
                                                 </select>
                                             </td>
                                             <td>
+                                                <select
+                                                    className="table-select"
+                                                    value={editForm.assigned_professor_id || ''}
+                                                    onChange={e => setEditForm(f => ({ ...f, assigned_professor_id: e.target.value }))}
+                                                >
+                                                    <option value="">Sem Professor</option>
+                                                    {professors
+                                                        .filter(p => !editForm.school_id || p.school_id === editForm.school_id)
+                                                        .map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                                                </select>
+                                            </td>
+                                            <td>
                                                 <input
                                                     className="table-input table-input-sm"
                                                     type="number" min={0} max={4}
@@ -279,6 +310,9 @@ export default function Athletes() {
                                                     />
                                                     {athlete.belt}
                                                 </span>
+                                            </td>
+                                            <td>
+                                                {athlete.assigned_professor?.full_name || <span className="text-muted">—</span>}
                                             </td>
                                             <td className="text-center">{athlete.degrees}°</td>
                                             <td className="text-center">{athlete.attended_classes}</td>

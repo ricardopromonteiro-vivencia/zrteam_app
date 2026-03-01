@@ -83,7 +83,20 @@ export default function Login() {
                 setSuccess('Email de recuperação enviado! Verifica a tua caixa de entrada.');
             }
         } catch (err: any) {
-            setError(err.message || 'Ocorreu um erro. Tenta novamente.');
+            let userFriendlyMessage = err.message;
+
+            // Tradução de erros comuns do Supabase
+            if (err.message?.includes('Invalid login credentials')) {
+                userFriendlyMessage = 'Credenciais de login inválidas. Verifica o teu email e palavra-passe.';
+            } else if (err.message?.includes('Email not confirmed')) {
+                userFriendlyMessage = 'O teu email ainda não foi confirmado. Verifica a tua caixa de entrada.';
+            } else if (err.message?.includes('User already registered')) {
+                userFriendlyMessage = 'Este email já está registado. Tenta fazer login.';
+            } else if (err.message?.includes('Password should be at least')) {
+                userFriendlyMessage = 'A palavra-passe deve ter pelo menos 6 caracteres.';
+            }
+
+            setError(userFriendlyMessage || 'Ocorreu um erro. Tenta novamente.');
         } finally {
             setLoading(false);
         }
@@ -246,6 +259,9 @@ export default function Login() {
                 </div>
 
                 <div className="zr-footer">
+                    <p style={{ marginBottom: '0.5rem' }}>
+                        Problemas no acesso? Contacta <a href="mailto:zrteamcheck@gmail.com" className="link-btn">zrteamcheck@gmail.com</a>
+                    </p>
                     <p>© {new Date().getFullYear()} Todos os direitos reservados</p>
                     <p>Desenvolvido por <strong>Monteirismo</strong></p>
                 </div>

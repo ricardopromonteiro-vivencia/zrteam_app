@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Lock, User, ShieldCheck } from 'lucide-react';
+import { Lock, User, ShieldCheck, Trash2, AlertTriangle } from 'lucide-react';
 
 export default function Settings() {
     const { profile } = useOutletContext<{ profile: any }>();
@@ -34,6 +34,29 @@ export default function Settings() {
         setLoading(false);
     };
 
+    const handleDeleteAccount = async () => {
+        const confirm1 = confirm('Tens a certeza que queres eliminar a tua conta? Esta ação é IRREVERSÍVEL e todos os teus dados serão apagados.');
+        if (!confirm1) return;
+
+        const confirm2 = prompt('Para confirmar a eliminação, escreve "ELIMINAR" na caixa abaixo:');
+        if (confirm2 !== 'ELIMINAR') {
+            alert('Confirmação incorreta. A conta não foi eliminada.');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const { error } = await supabase.rpc('delete_own_user');
+            if (error) throw error;
+
+            await supabase.auth.signOut();
+            window.location.href = '/';
+        } catch (err: any) {
+            alert('Erro ao eliminar conta: ' + err.message);
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="settings-page animate-fade-in">
             <h1 className="page-title">Área Pessoal</h1>
@@ -64,6 +87,10 @@ export default function Settings() {
                         <div className="info-item">
                             <label>Faixa / Graduação</label>
                             <p>{profile.belt} - {profile.degrees} Graus</p>
+                        </div>
+                        <div className="info-item">
+                            <label>Professor Responsável</label>
+                            <p>{profile.assigned_professor?.full_name || <span className="text-muted">Nenhum atribuído</span>}</p>
                         </div>
                     </div>
                 </div>
@@ -112,6 +139,23 @@ export default function Settings() {
                         </button>
                     </form>
                 </div>
+
+                <div className="settings-card danger-zone">
+                    <div className="card-header">
+                        <AlertTriangle className="text-danger" />
+                        <h2>Zona de Perigo</h2>
+                    </div>
+                    <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+                        Uma vez eliminada, a tua conta e todos os teus dados associados (presenças, pagamentos, etc.) não podem ser recuperados.
+                    </p>
+                    <button
+                        onClick={handleDeleteAccount}
+                        className="btn-danger-outline w-full"
+                        disabled={loading}
+                    >
+                        <Trash2 size={18} /> Eliminar a Minha Conta
+                    </button>
+                </div>
             </div>
 
             <style>{`
@@ -130,7 +174,17 @@ export default function Settings() {
                 .message-error { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); }
                 
                 .text-muted { color: var(--text-muted); }
+                .text-danger { color: var(--danger); }
                 .role-badge { background: rgba(16, 185, 129, 0.1); color: var(--primary); padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
+                .danger-zone { border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.02); }
+                .btn-danger-outline {
+                    display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+                    background: transparent; border: 1px solid var(--danger); color: var(--danger);
+                    padding: 0.75rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .btn-danger-outline:hover:not(:disabled) { background: var(--danger); color: white; }
+                .w-full { width: 100%; }
             `}</style>
         </div>
     );

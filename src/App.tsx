@@ -14,6 +14,7 @@ import Settings from './pages/Settings';
 import Terms from './pages/Terms';
 import Help from './pages/Help';
 import Schools from './pages/Schools';
+import Payments from './pages/Payments';
 import ResetPassword from './pages/ResetPassword';
 
 function App() {
@@ -57,6 +58,8 @@ function App() {
           <Route path="/admin/checkin" element={<CheckIn />} />
           <Route path="/admin/atletas" element={<Athletes />} />
           <Route path="/admin/escolas" element={<Schools />} />
+          <Route path="/admin/pagamentos" element={<Payments />} />
+          <Route path="/checkin" element={<CheckIn />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/ajuda" element={<Help />} />
         </Route>

@@ -4,11 +4,23 @@ import { Activity, Calendar, Clock, ExternalLink, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const GRADUATION_RULES: Record<string, { totalForNextBelt: number, classesPerDegree: number, nextBelt: string }> = {
-  'Branca': { totalForNextBelt: 120, classesPerDegree: 25, nextBelt: 'Azul' },
+  'Cinza/ branco': { totalForNextBelt: 40, classesPerDegree: 8, nextBelt: 'Cinza' },
+  'Cinza': { totalForNextBelt: 40, classesPerDegree: 8, nextBelt: 'Cinza/ Preto' },
+  'Cinza/ Preto': { totalForNextBelt: 40, classesPerDegree: 8, nextBelt: 'Amarelo / Branco' },
+  'Amarelo / Branco': { totalForNextBelt: 50, classesPerDegree: 10, nextBelt: 'Amarelo' },
+  'Amarelo': { totalForNextBelt: 50, classesPerDegree: 10, nextBelt: 'Amarelo/ preto' },
+  'Amarelo/ preto': { totalForNextBelt: 50, classesPerDegree: 10, nextBelt: 'Laranja/ Branco' },
+  'Laranja/ Branco': { totalForNextBelt: 60, classesPerDegree: 12, nextBelt: 'Laranja' },
+  'Laranja': { totalForNextBelt: 60, classesPerDegree: 12, nextBelt: 'Laranja/ preto' },
+  'Laranja/ preto': { totalForNextBelt: 60, classesPerDegree: 12, nextBelt: 'Verde / Branco' },
+  'Verde / Branco': { totalForNextBelt: 70, classesPerDegree: 14, nextBelt: 'Verde' },
+  'Verde': { totalForNextBelt: 70, classesPerDegree: 14, nextBelt: 'Verde / Preto' },
+  'Verde / Preto': { totalForNextBelt: 70, classesPerDegree: 14, nextBelt: 'Branco' },
+  'Branco': { totalForNextBelt: 120, classesPerDegree: 25, nextBelt: 'Azul' },
   'Azul': { totalForNextBelt: 250, classesPerDegree: 55, nextBelt: 'Roxa' },
-  'Roxa': { totalForNextBelt: 375, classesPerDegree: 85, nextBelt: 'Marrom' },
-  'Marrom': { totalForNextBelt: 500, classesPerDegree: 115, nextBelt: 'Preta' },
-  'Preta': { totalForNextBelt: 1000, classesPerDegree: 200, nextBelt: 'Coral' }
+  'Roxo': { totalForNextBelt: 375, classesPerDegree: 85, nextBelt: 'Marrom' },
+  'Marrom': { totalForNextBelt: 500, classesPerDegree: 115, nextBelt: 'Preto' },
+  'Preto': { totalForNextBelt: 1000, classesPerDegree: 200, nextBelt: 'Preto' }
 };
 
 export default function Dashboard() {
@@ -160,9 +172,9 @@ export default function Dashboard() {
   const classesUntilNextBelt = rule.totalForNextBelt - profile.attended_classes;
 
   const getCalendarLinks = (cls: any) => {
-    const start = cls.date.replace(/-/g, '') + 'T' + cls.start_time.replace(/:/g, '') + '00Z';
-    const end = cls.date.replace(/-/g, '') + 'T' + cls.end_time.replace(/:/g, '') + '00Z';
-    const title = encodeURIComponent(cls.title + ' - ZR Team');
+    const start = (cls.date?.replace(/-/g, '') || '') + 'T' + (cls.start_time?.replace(/:/g, '') || '') + '00Z';
+    const end = (cls.date?.replace(/-/g, '') || '') + 'T' + (cls.end_time?.replace(/:/g, '') || '') + '00Z';
+    const title = encodeURIComponent((cls.title || 'Aula') + ' - ZR Team');
 
     const google = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}`;
     const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${title}&startdt=${cls.date}T${cls.start_time}&enddt=${cls.date}T${cls.end_time}`;

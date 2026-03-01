@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { LogOut, Home, Calendar, Users, Activity, Settings, ShieldCheck, Menu, X, Building2, HelpCircle, Download } from 'lucide-react';
+import {
+  LogOut, Home, Calendar, Users, Activity, Settings,
+  ShieldCheck, Menu, X, Building2, HelpCircle, Download, CreditCard
+} from 'lucide-react';
 import logo from '../assets/logo.png';
 
 export default function Layout() {
@@ -44,7 +47,7 @@ export default function Layout() {
 
       let { data, error } = await supabase
         .from('profiles')
-        .select('*, school:schools(name)')
+        .select('*, school:schools(name), assigned_professor:profiles!assigned_professor_id(full_name)')
         .eq('id', session.user.id)
         .single();
 
@@ -135,15 +138,26 @@ export default function Layout() {
               key={item.path}
               to={item.path}
               className={`nav-link ${location.pathname === item.path ? 'active' : ''}`}
+              onClick={() => setIsSidebarOpen(false)}
             >
               <item.icon size={20} />
               {item.name}
             </Link>
           ))}
-          <Link to="/termos" className="nav-link terms-nav-link">
+          {(profile?.role === 'Admin' || profile?.role === 'Professor') && (
+            <Link
+              to="/admin/pagamentos"
+              className={`nav-link ${location.pathname === '/admin/pagamentos' ? 'active' : ''}`}
+              onClick={() => setIsSidebarOpen(false)}
+            >
+              <CreditCard size={20} />
+              Pagamentos
+            </Link>
+          )}
+          <Link to="/termos" className="nav-link terms-nav-link" onClick={() => setIsSidebarOpen(false)}>
             <ShieldCheck size={20} /> Termos e Condições
           </Link>
-          <Link to="/ajuda" className={`nav-link help-nav-link ${location.pathname === '/ajuda' ? 'active' : ''}`}>
+          <Link to="/ajuda" className={`nav-link help-nav-link ${location.pathname === '/ajuda' ? 'active' : ''}`} onClick={() => setIsSidebarOpen(false)}>
             <HelpCircle size={20} /> Ajuda & Suporte
           </Link>
           {deferredPrompt && (

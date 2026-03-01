@@ -27,14 +27,18 @@ export default function Classes() {
         setLoading(true);
 
         // 1. Buscar aulas com contagem de reservas
-        const { data: classData } = await supabase
+        // 1. Buscar aulas com contagem de reservas
+        let query = supabase
             .from('classes')
-            .select(`
-                *,
-                professor_id(full_name),
-                class_bookings(count)
-            `)
-            .or(`school_id.eq.${profile.school_id},school_id.is.null`)
+            .select('*, professor_id(full_name), class_bookings(count)');
+
+        if (profile?.school_id) {
+            query = query.or(`school_id.eq.${profile.school_id},school_id.is.null`);
+        } else {
+            query = query.is('school_id', null);
+        }
+
+        const { data: classData } = await query
             .order('date', { ascending: true })
             .order('start_time', { ascending: true });
 
