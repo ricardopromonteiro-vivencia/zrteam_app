@@ -3,7 +3,7 @@ import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
   LogOut, Home, Calendar, Users, Activity, Settings,
-  ShieldCheck, Menu, X, Building2, HelpCircle, Download, CreditCard
+  ShieldCheck, Menu, X, Building2, HelpCircle, Download, CreditCard, Megaphone
 } from 'lucide-react';
 import logo from '../assets/logo.png';
 
@@ -93,11 +93,13 @@ export default function Layout() {
     ? [
       { name: 'Dashboard', path: '/dashboard', icon: Home },
       { name: 'Aulas', path: '/aulas', icon: Calendar },
+      { name: 'Avisos', path: '/avisos', icon: Megaphone },
       { name: 'Área Pessoal', path: '/settings', icon: Settings },
     ]
     : [
       { name: 'Dashboard', path: '/dashboard', icon: Activity },
       { name: 'Gestão de Aulas', path: '/admin/aulas', icon: Calendar },
+      { name: 'Avisos', path: '/avisos', icon: Megaphone },
       { name: 'Atletas', path: '/admin/atletas', icon: Users },
       { name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 },
       { name: 'Check-in', path: '/admin/checkin', icon: Activity },
@@ -279,6 +281,16 @@ export default function Layout() {
         .sidebar-nav {
           padding: 1rem 0;
           flex: 1;
+          overflow-y: auto;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+        .sidebar-nav::-webkit-scrollbar {
+          width: 4px;
+        }
+        .sidebar-nav::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.1);
+          border-radius: 10px;
         }
         .nav-link {
           display: flex;
@@ -375,6 +387,7 @@ export default function Layout() {
             width: 280px;
             transform: translateX(-100%);
             box-shadow: 10px 0 20px rgba(0,0,0,0.5);
+            max-height: 100vh;
           }
           .sidebar.open {
             transform: translateX(0);
@@ -397,7 +410,22 @@ export default function Layout() {
             margin-top: 60px; /* Espaço para a barra fixa de topo em mobile */
           }
           .sidebar-header {
-            padding-top: 2rem;
+            padding: 1.5rem 1rem 1rem 1rem;
+          }
+          .sidebar-logo {
+            width: 60px;
+            height: 60px;
+          }
+          .nav-link {
+            padding: 0.65rem 1.25rem;
+            font-size: 0.9rem;
+          }
+          .sidebar-footer {
+            padding: 1rem;
+          }
+          .zr-credits {
+            padding: 0.75rem 1rem;
+            font-size: 0.6rem;
           }
         }
       `}</style>

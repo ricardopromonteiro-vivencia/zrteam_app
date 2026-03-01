@@ -15,6 +15,7 @@ import Terms from './pages/Terms';
 import Help from './pages/Help';
 import Schools from './pages/Schools';
 import Payments from './pages/Payments';
+import Announcements from './pages/Announcements';
 import ResetPassword from './pages/ResetPassword';
 
 function App() {
@@ -55,6 +56,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/aulas" element={<Classes />} />
           <Route path="/admin/aulas" element={<Classes />} />
+          <Route path="/avisos" element={<Announcements />} />
           <Route path="/admin/checkin" element={<CheckIn />} />
           <Route path="/admin/atletas" element={<Athletes />} />
           <Route path="/admin/escolas" element={<Schools />} />

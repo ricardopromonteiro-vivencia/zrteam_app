@@ -37,8 +37,57 @@ export default function Dashboard() {
   useEffect(() => {
     if (profile) {
       fetchDashboardData();
+      checkRecurringClasses();
     }
   }, [profile]);
+
+  async function checkRecurringClasses() {
+    if (profile.role === 'Atleta') return;
+
+    // Buscar aulas recorrentes do passado recente (até 7 dias atrás)
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const { data: recurringClasses } = await supabase
+      .from('classes')
+      .select('*')
+      .eq('is_recurring', true)
+      .gte('date', weekAgo.toISOString().split('T')[0])
+      .lte('date', new Date().toISOString().split('T')[0]);
+
+    if (!recurringClasses) return;
+
+    for (const cls of recurringClasses) {
+      // Calcular a data da próxima semana
+      const nextDate = new Date(cls.date);
+      nextDate.setDate(nextDate.getDate() + 7);
+      const nextDateStr = nextDate.toISOString().split('T')[0];
+
+      // Verificar se já existe a aula para a próxima semana
+      const { data: existing } = await supabase
+        .from('classes')
+        .select('id')
+        .eq('title', cls.title)
+        .eq('date', nextDateStr)
+        .eq('start_time', cls.start_time)
+        .eq('school_id', cls.school_id)
+        .maybeSingle();
+
+      if (!existing) {
+        // Criar a aula para a próxima semana
+        await supabase.from('classes').insert([{
+          title: cls.title,
+          date: nextDateStr,
+          start_time: cls.start_time,
+          end_time: cls.end_time,
+          capacity: cls.capacity,
+          professor_id: cls.professor_id,
+          school_id: cls.school_id,
+          is_recurring: true
+        }]);
+      }
+    }
+  }
 
   async function fetchDashboardData() {
     setLoading(true);
