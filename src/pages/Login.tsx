@@ -102,6 +102,25 @@ export default function Login() {
         }
     };
 
+    const handleResendConfirmation = async () => {
+        if (!email) {
+            setError('Por favor, insere o teu email primeiro.');
+            return;
+        }
+        setLoading(true);
+        const { error } = await supabase.auth.resend({
+            type: 'signup',
+            email: email,
+        });
+        if (error) {
+            setError('Erro ao reenviar: ' + error.message);
+        } else {
+            setSuccess('Email de confirmação reenviado! Verifica a tua caixa de entrada.');
+            setError(null);
+        }
+        setLoading(false);
+    };
+
     const titles: Record<Mode, string> = {
         login: 'Bem-vindo de volta ao tatame.',
         register: 'Cria a tua conta e começa a treinar.',
@@ -116,7 +135,31 @@ export default function Login() {
                     <p className="auth-subtitle">{titles[mode]}</p>
                 </div>
 
-                {error && <div className="error-message">{error}</div>}
+                {error && (
+                    <div className="error-message">
+                        {error}
+                        {error.includes('ainda não foi confirmado') && (
+                            <button
+                                type="button"
+                                onClick={handleResendConfirmation}
+                                className="resend-link"
+                                disabled={loading}
+                                style={{
+                                    display: 'block',
+                                    marginTop: '0.5rem',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--primary)',
+                                    textDecoration: 'underline',
+                                    cursor: 'pointer',
+                                    fontSize: '0.875rem'
+                                }}
+                            >
+                                Reenviar email de confirmação
+                            </button>
+                        )}
+                    </div>
+                )}
                 {success && <div className="success-message">{success}</div>}
 
                 <form onSubmit={handleAuth}>

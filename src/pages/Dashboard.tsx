@@ -324,7 +324,7 @@ export default function Dashboard() {
                       <div className="agenda-item-info">
                         <h4>{cls.title}</h4>
                         <p><Calendar size={12} /> {cls.date}</p>
-                        <p><Clock size={12} /> {cls.start_time.substring(0, 5)}</p>
+                        <p><Clock size={12} /> {cls.start_time?.substring(0, 5) || '--:--'}</p>
                       </div>
                       <div className="agenda-actions">
                         <div className="dropdown">

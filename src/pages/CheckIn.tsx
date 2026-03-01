@@ -19,16 +19,18 @@ export default function CheckIn() {
         const today = new Date().toISOString().split('T')[0];
 
         // Aulas de hoje: Filtrar por escola do professor ou mostrar órfãs (null)
+        // Admins vêem todas
         let classesQuery = supabase
             .from('classes')
             .select('*')
             .eq('date', today);
 
-        if (profile?.school_id) {
+        if (profile?.role === 'Professor' && profile?.school_id) {
             classesQuery = classesQuery.or(`school_id.eq.${profile.school_id},school_id.is.null`);
-        } else {
+        } else if (profile?.role === 'Professor') {
             classesQuery = classesQuery.is('school_id', null);
         }
+        // Se for Admin, não aplicamos filtro de escola (vê todas as aulas de hoje)
 
         classesQuery.then(({ data }) => {
             if (data) setTodayClasses(data);

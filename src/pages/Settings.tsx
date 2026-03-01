@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Lock, User, ShieldCheck, Trash2, AlertTriangle } from 'lucide-react';
@@ -9,6 +9,35 @@ export default function Settings() {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+
+    const currentMonth = new Date().toLocaleString('pt-PT', { month: 'long' });
+    const currentYear = new Date().getFullYear();
+
+    useEffect(() => {
+        async function fetchPaymentStatus() {
+            if (!profile?.id) return;
+            const now = new Date();
+            const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+            const month = monthNames[now.getMonth()];
+            const year = now.getFullYear();
+
+            const { data } = await supabase
+                .from('payments')
+                .select('status')
+                .eq('athlete_id', profile.id)
+                .eq('month', month)
+                .eq('year', year)
+                .maybeSingle();
+
+            if (data) {
+                setPaymentStatus(data.status);
+            } else {
+                setPaymentStatus('Pendente');
+            }
+        }
+        fetchPaymentStatus();
+    }, [profile?.id]);
 
     const handleUpdatePassword = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -91,6 +120,14 @@ export default function Settings() {
                         <div className="info-item">
                             <label>Professor Responsável</label>
                             <p>{profile.assigned_professor?.full_name || <span className="text-muted">Nenhum atribuído</span>}</p>
+                        </div>
+                        <div className="info-item">
+                            <label>Mensalidade ({currentMonth} {currentYear})</label>
+                            <p>
+                                <span className={`payment-badge ${paymentStatus === 'Pago' ? 'paid' : 'pending'}`}>
+                                    {paymentStatus || 'A carregar...'}
+                                </span>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -185,6 +222,10 @@ export default function Settings() {
                 }
                 .btn-danger-outline:hover:not(:disabled) { background: var(--danger); color: white; }
                 .w-full { width: 100%; }
+
+                .payment-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; display: inline-block; }
+                .payment-badge.paid { background: rgba(16, 185, 129, 0.1); color: var(--primary); border: 1px solid rgba(16, 185, 129, 0.2); }
+                .payment-badge.pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
             `}</style>
         </div>
     );

@@ -23,6 +23,7 @@ interface Profile {
     school_id: string | null;
     date_of_birth: string | null;
     assigned_professor_id: string | null;
+    email?: string | null;
     created_at: string;
     school?: { name: string };
     assigned_professor?: { full_name: string };
@@ -54,7 +55,10 @@ export default function Athletes() {
         const { data: schoolsData } = await supabase.from('schools').select('id, name');
         if (schoolsData) setSchools(schoolsData);
 
-        const { data: profsData } = await supabase.from('profiles').select('id, full_name, school_id').eq('role', 'Professor');
+        const { data: profsData } = await supabase
+            .from('profiles')
+            .select('id, full_name, school_id')
+            .in('role', ['Professor', 'Admin']);
         if (profsData) setProfessors(profsData);
     }
 
@@ -132,6 +136,25 @@ export default function Athletes() {
         a.role?.toLowerCase().includes(search.toLowerCase())
     );
 
+    const handleAdminResendEmail = async (email: string) => {
+        if (!email) {
+            setFeedback({ type: 'error', msg: 'Este atleta não tem email registado no perfil.' });
+            return;
+        }
+
+        const { error } = await supabase.auth.resend({
+            type: 'signup',
+            email: email,
+        });
+
+        if (error) {
+            setFeedback({ type: 'error', msg: 'Erro ao reenviar: ' + error.message });
+        } else {
+            setFeedback({ type: 'success', msg: 'Email de confirmação enviado com sucesso!' });
+        }
+        setTimeout(() => setFeedback(null), 3000);
+    };
+
     const beltColors: Record<string, string> = {
         'Cinza/ branco': '#d1d5db', 'Cinza': '#9ca3af', 'Cinza/ Preto': '#4b5563',
         'Amarelo / Branco': '#fef08a', 'Amarelo': '#facc15', 'Amarelo/ preto': '#a16207',
@@ -202,6 +225,7 @@ export default function Athletes() {
                                 <th>Professor</th>
                                 <th>Graus</th>
                                 <th>Aulas</th>
+                                {isAdmin && <th>Email</th>}
                                 <th>Membro desde</th>
                                 {isAdmin && <th>Ações</th>}
                             </tr>
@@ -282,6 +306,7 @@ export default function Athletes() {
                                                     onChange={e => setEditForm(f => ({ ...f, attended_classes: +e.target.value }))}
                                                 />
                                             </td>
+                                            {isAdmin && <td className="text-muted" style={{ fontSize: '0.75rem' }}>{athlete.email || '—'}</td>}
                                             <td>{new Date(athlete.created_at).toLocaleDateString('pt-PT')}</td>
                                             <td>
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -316,6 +341,20 @@ export default function Athletes() {
                                             </td>
                                             <td className="text-center">{athlete.degrees}°</td>
                                             <td className="text-center">{athlete.attended_classes}</td>
+                                            {isAdmin && (
+                                                <td style={{ fontSize: '0.75rem' }}>
+                                                    {athlete.email || <span className="text-muted">—</span>}
+                                                    {athlete.email && (
+                                                        <button
+                                                            onClick={() => handleAdminResendEmail(athlete.email!)}
+                                                            className="btn-link"
+                                                            style={{ display: 'block', fontSize: '10px', color: 'var(--primary)', padding: 0 }}
+                                                        >
+                                                            Reenviar Confirmação
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            )}
                                             <td className="text-muted">{new Date(athlete.created_at).toLocaleDateString('pt-PT')}</td>
                                             {isAdmin && (
                                                 <td>
