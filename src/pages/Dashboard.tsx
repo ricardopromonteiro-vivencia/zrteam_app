@@ -114,7 +114,7 @@ export default function Dashboard() {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
-          timeout: 10000,
+          timeout: 30000,
           maximumAge: 0
         });
       });
@@ -144,7 +144,11 @@ export default function Dashboard() {
       }
     } catch (err: any) {
       setCheckinStep('error');
-      setErrorMessage(err.code === 1 ? 'Permissão de GPS negada.' : 'Erro ao obter localização. Tenta novamente.');
+      setErrorMessage(
+        err.code === 1 ? 'Permissão de GPS negada. Ativa a localização no browser.' :
+          err.code === 3 ? 'Tempo de espera do GPS esgotado. Tenta num local mais aberto.' :
+            'Erro ao obter localização. Garante que tens o GPS ligado.'
+      );
     }
   };
 

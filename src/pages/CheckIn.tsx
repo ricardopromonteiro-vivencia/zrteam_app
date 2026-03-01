@@ -54,7 +54,7 @@ export default function CheckIn() {
         setLoading(true);
         const { data } = await supabase
             .from('class_bookings')
-            .select('*, user_id(id, full_name, belt, degrees, nfc_uid)')
+            .select('*, user_id(id, full_name, belt, degrees)')
             .eq('class_id', cls.id)
             .order('created_at');
         if (data) setBookings(data);
@@ -223,9 +223,12 @@ export default function CheckIn() {
                         </div>
 
                         {loading ? (
-                            <p style={{ color: 'var(--text-muted)' }}>A carregar...</p>
+                            <div className="loading-container">
+                                <Clock size={24} className="animate-spin" />
+                                <p>A atualizar lista de inscritos...</p>
+                            </div>
                         ) : bookings.length === 0 ? (
-                            <p style={{ color: 'var(--text-muted)' }}>Nenhum atleta inscrito nesta aula.</p>
+                            <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Nenhum atleta inscrito nesta aula ainda.</p>
                         ) : (
                             <div className="bookings-list">
                                 {bookings.map(booking => (
@@ -404,7 +407,25 @@ export default function CheckIn() {
         }
         .btn-checkin:hover { background-color: var(--primary-dark); }
 
-        .today-classes { margin-bottom: 1.5rem; }
+        .today-classes { margin-bottom: 2rem; }
+        
+        .loading-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1rem;
+          padding: 3rem 0;
+          color: var(--text-muted);
+        }
+
+        .animate-spin {
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
       `}</style>
         </div>
     );
