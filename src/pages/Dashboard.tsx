@@ -16,10 +16,10 @@ const GRADUATION_RULES: Record<string, { totalForNextBelt: number, classesPerDeg
   'Verde / Branco': { totalForNextBelt: 70, classesPerDegree: 14, nextBelt: 'Verde' },
   'Verde': { totalForNextBelt: 70, classesPerDegree: 14, nextBelt: 'Verde / Preto' },
   'Verde / Preto': { totalForNextBelt: 70, classesPerDegree: 14, nextBelt: 'Branco' },
-  'Branco': { totalForNextBelt: 120, classesPerDegree: 25, nextBelt: 'Azul' },
-  'Azul': { totalForNextBelt: 250, classesPerDegree: 55, nextBelt: 'Roxa' },
-  'Roxo': { totalForNextBelt: 375, classesPerDegree: 85, nextBelt: 'Marrom' },
-  'Marrom': { totalForNextBelt: 500, classesPerDegree: 115, nextBelt: 'Preto' },
+  'Branco': { totalForNextBelt: 220, classesPerDegree: 55, nextBelt: 'Azul' },
+  'Azul': { totalForNextBelt: 300, classesPerDegree: 75, nextBelt: 'Roxa' },
+  'Roxo': { totalForNextBelt: 300, classesPerDegree: 75, nextBelt: 'Marrom' },
+  'Marrom': { totalForNextBelt: 280, classesPerDegree: 70, nextBelt: 'Preto' },
   'Preto': { totalForNextBelt: 1000, classesPerDegree: 200, nextBelt: 'Preto' }
 };
 

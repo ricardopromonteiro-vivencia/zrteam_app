@@ -10,6 +10,10 @@ export default function Classes() {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingClass, setEditingClass] = useState<any>(null);
+    const [showBookingsModal, setShowBookingsModal] = useState(false);
+    const [selectedClassBookings, setSelectedClassBookings] = useState<any[]>([]);
+    const [selectedClassTitle, setSelectedClassTitle] = useState('');
+    const [loadingBookings, setLoadingBookings] = useState(false);
     const [selectedDay, setSelectedDay] = useState<number>(new Date().getDay());
 
     const DAYS_OF_WEEK = [
@@ -224,6 +228,33 @@ export default function Classes() {
     };
 
 
+    const handleViewBookings = async (cls: any) => {
+        setSelectedClassTitle(cls.title);
+        setShowBookingsModal(true);
+        setLoadingBookings(true);
+
+        const { data, error } = await supabase
+            .from('class_bookings')
+            .select(`
+                id,
+                status,
+                profiles (
+                    full_name,
+                    belt,
+                    degrees
+                )
+            `)
+            .eq('class_id', cls.id)
+            .order('created_at');
+
+        if (data) {
+            setSelectedClassBookings(data);
+        } else if (error) {
+            console.error('Erro ao buscar inscritos:', error);
+        }
+        setLoadingBookings(false);
+    };
+
     const handleDeleteClass = async (classId: string) => {
         if (!confirm('Eliminar esta aula?')) return;
         const { error } = await supabase.from('classes').delete().eq('id', classId);
@@ -304,6 +335,15 @@ export default function Classes() {
                                                 <Calendar size={14} /> Aula Recorrente
                                             </p>
                                         )}
+                                        {isAdmin && (
+                                            <button
+                                                onClick={() => handleViewBookings(cls)}
+                                                className="btn-view-bookings"
+                                                style={{ marginTop: '0.5rem', width: '100%', fontSize: '0.75rem', padding: '0.4rem' }}
+                                            >
+                                                Ver Inscritos
+                                            </button>
+                                        )}
                                     </div>
 
                                     {!isAdmin && (
@@ -322,6 +362,42 @@ export default function Classes() {
                             );
                         });
                     })()}
+                </div>
+            )}
+
+            {showBookingsModal && (
+                <div className="modal-overlay">
+                    <div className="modal-content animate-fade-in" style={{ maxWidth: '500px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <h2 style={{ margin: 0 }}>Inscritos: {selectedClassTitle}</h2>
+                            <button className="btn-icon" onClick={() => setShowBookingsModal(false)}>
+                                <Plus size={20} style={{ transform: 'rotate(45deg)' }} />
+                            </button>
+                        </div>
+
+                        {loadingBookings ? (
+                            <p className="text-muted">A carregar...</p>
+                        ) : selectedClassBookings.length === 0 ? (
+                            <p className="text-muted" style={{ textAlign: 'center', padding: '1rem' }}>Ainda não há inscritos.</p>
+                        ) : (
+                            <div className="bookings-modal-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {selectedClassBookings.map((b: any) => (
+                                    <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
+                                        <div>
+                                            <div style={{ fontWeight: 600 }}>{b.profiles?.full_name}</div>
+                                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{b.profiles?.belt} | {b.profiles?.degrees} Grau(s)</div>
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', alignSelf: 'center' }}>
+                                            <span className={`status-badge status-${b.status.toLowerCase()}`}>{b.status}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
+                            <button className="btn-primary" onClick={() => setShowBookingsModal(false)}>Fechar</button>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -483,6 +559,30 @@ export default function Classes() {
                 .modal-content { background-color: var(--bg-card); padding: 2rem; border-radius: 1rem; width: 100%; max-width: 500px; border: 1px solid var(--border); }
                 .modal-content h2 { color: white; margin-bottom: 1.5rem; }
                 .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem; }
+
+                .btn-view-bookings {
+                    background: rgba(16, 185, 129, 0.1);
+                    color: var(--primary);
+                    border: 1px solid rgba(16, 185, 129, 0.3);
+                    border-radius: 0.5rem;
+                    cursor: pointer;
+                    font-weight: 600;
+                    transition: all 0.2s;
+                }
+                .btn-view-bookings:hover {
+                    background: rgba(16, 185, 129, 0.2);
+                    border-color: var(--primary);
+                }
+
+                .status-badge {
+                    padding: 0.2rem 0.5rem;
+                    border-radius: 9999px;
+                    font-size: 0.7rem;
+                    font-weight: 700;
+                }
+                .status-badge.status-presente { background: rgba(16, 185, 129, 0.15); color: var(--primary); }
+                .status-badge.status-marcado { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+                .status-badge.status-falta { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
             `}</style>
         </div>
     );

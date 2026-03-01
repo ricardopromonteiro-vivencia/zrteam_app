@@ -35,7 +35,7 @@ export default function Payments() {
             .eq('role', 'Atleta')
             .order('full_name');
 
-        if (profile?.role === 'Professor' || (profile?.role === 'Admin' && profile?.school_id)) {
+        if (profile?.role === 'Professor') {
             athletesQuery = athletesQuery.eq('school_id', profile.school_id);
         }
 
