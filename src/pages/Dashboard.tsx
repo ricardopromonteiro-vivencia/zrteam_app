@@ -33,6 +33,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [checkinStep, setCheckinStep] = useState<'idle' | 'locating' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [activeClasses, setActiveClasses] = useState<any[]>([]);
+  const [showClassSelection, setShowClassSelection] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -166,9 +168,10 @@ export default function Dashboard() {
     setLoading(false);
   }
 
-  const handleSecureCheckin = async () => {
+  const handleSecureCheckin = async (classId?: string) => {
     setCheckinStep('locating');
     setErrorMessage('');
+    setShowClassSelection(false);
 
     try {
       // 1. Obter Localização com Timeout de 10s
@@ -188,7 +191,8 @@ export default function Dashboard() {
       const { data, error: rpcError } = await supabase.rpc('secure_checkin', {
         p_lat: position.coords.latitude,
         p_lng: position.coords.longitude,
-        p_client_ip: ipData.ip
+        p_client_ip: ipData.ip,
+        p_class_id: classId || null
       });
 
       if (rpcError) throw rpcError;
@@ -199,6 +203,25 @@ export default function Dashboard() {
           setCheckinStep('idle');
           fetchDashboardData();
         }, 3000);
+      } else if (data?.error === 'MULTIPLE_CLASSES') {
+        // Obter as aulas ativas para o utilizador escolher
+        const today = new Date().toISOString().split('T')[0];
+        const v_now = new Date();
+        const { data: classes } = await supabase
+          .from('classes')
+          .select('id, title, start_time, end_time')
+          .eq('date', today);
+
+        // Filtrar no frontend por segurança (mesma lógica do RPC)
+        const active = classes?.filter(c => {
+          const start = new Date(`${today}T${c.start_time}`);
+          const end = new Date(`${today}T${c.end_time}`);
+          return v_now >= new Date(start.getTime() - 30 * 60000) && v_now <= new Date(end.getTime() + 15 * 60000);
+        }) || [];
+
+        setActiveClasses(active);
+        setShowClassSelection(true);
+        setCheckinStep('idle');
       } else {
         setCheckinStep('error');
         setErrorMessage(data?.error || 'Falha no check-in');
@@ -332,20 +355,41 @@ export default function Dashboard() {
             <div className="banner-content">
               <h3>Presença Inteligente</h3>
               <p>Confirmamos a tua presença automaticamente através da tua localização (GPS).</p>
-            </div>
-            <button
-              className={`btn-secure-checkin step-${checkinStep}`}
-              onClick={handleSecureCheckin}
-              disabled={checkinStep === 'locating' || checkinStep === 'success'}
-            >
-              {checkinStep === 'locating' ? (
-                <span className="loading-spinner">A aguardar localização...</span>
-              ) : checkinStep === 'success' ? (
-                '✅ Check-in Concluído!'
-              ) : (
-                'Confirmar Presença'
+              {!loading && stats.nextClasses.length === 0 && (
+                <p className="text-secondary" style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                  💡 Não precisas de reserva, o sistema cria uma para ti!
+                </p>
               )}
-            </button>
+            </div>
+
+            {!showClassSelection ? (
+              <button
+                className={`btn-secure-checkin step-${checkinStep}`}
+                onClick={() => handleSecureCheckin()}
+                disabled={checkinStep === 'locating' || checkinStep === 'success'}
+              >
+                {checkinStep === 'locating' ? (
+                  <span className="loading-spinner">A aguardar localização...</span>
+                ) : checkinStep === 'success' ? (
+                  '✅ Check-in Concluído!'
+                ) : (
+                  'Confirmar Presença'
+                )}
+              </button>
+            ) : (
+              <div className="class-selection-popup">
+                <h4>Seleciona a tua aula:</h4>
+                <div className="class-selection-list">
+                  {activeClasses.map(c => (
+                    <button key={c.id} onClick={() => handleSecureCheckin(c.id)} className="btn-class-option">
+                      {c.title} ({c.start_time.substring(0, 5)})
+                    </button>
+                  ))}
+                  <button onClick={() => setShowClassSelection(false)} className="btn-cancel-selection">Cancelar</button>
+                </div>
+              </div>
+            )}
+
             {checkinStep === 'error' && <p className="checkin-error-text">{errorMessage}</p>}
           </div>
         </div>
@@ -455,6 +499,15 @@ export default function Dashboard() {
                 .btn-secure-checkin:hover { background: var(--primary-dark); transform: translateY(-1px); }
                 .btn-secure-checkin:disabled { opacity: 0.7; cursor: not-allowed; }
                 .btn-secure-checkin.loading { animation: pulse 1s infinite; }
+
+                .class-selection-popup { background: var(--bg-card); border: 1px solid var(--primary); padding: 1rem; border-radius: 0.75rem; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+                .class-selection-popup h4 { font-size: 0.875rem; color: white; margin-bottom: 0.75rem; text-align: center; }
+                .class-selection-list { display: flex; flex-direction: column; gap: 0.5rem; }
+                .btn-class-option { background: rgba(16, 185, 129, 0.1); border: 1px solid var(--primary); color: var(--primary); padding: 0.5rem; border-radius: 0.5rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+                .btn-class-option:hover { background: var(--primary); color: white; }
+                .btn-cancel-selection { background: transparent; border: none; color: var(--text-muted); font-size: 0.7rem; cursor: pointer; padding-top: 0.25rem; }
+                .btn-cancel-selection:hover { color: var(--danger); text-decoration: underline; }
+                .text-secondary { color: #fb923c !important; }
 
                 .agenda-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
                 .agenda-title { font-size: 1.125rem; font-weight: 600; color: white; }
