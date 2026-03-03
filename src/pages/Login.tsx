@@ -94,6 +94,12 @@ export default function Login() {
                 userFriendlyMessage = 'Este email já está registado. Tenta fazer login.';
             } else if (err.message?.includes('Password should be at least')) {
                 userFriendlyMessage = 'A palavra-passe deve ter pelo menos 6 caracteres.';
+            } else if (err.message?.includes('sending confirmation email') || err.message?.includes('Error sending') || err.status === 500) {
+                userFriendlyMessage = '⚠️ Erro no servidor de email. A tua conta foi criada! Aguarda que o administrador confirme manualmente o teu acesso ou tenta mais tarde.';
+                // Mudar para login para o utilizador saber que a conta existe
+                setSuccess('Conta criada! O administrador irá confirmar o teu acesso em breve.');
+                switchMode('login');
+                return;
             }
 
             setError(userFriendlyMessage || 'Ocorreu um erro. Tenta novamente.');
