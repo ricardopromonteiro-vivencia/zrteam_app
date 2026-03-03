@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useOutletContext } from 'react-router-dom';
-import { Edit2, Save, X, Search, Users, Download } from 'lucide-react';
+import { Edit2, Save, X, Search, Users, Download, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -28,6 +28,7 @@ interface Profile {
     assigned_professor_id: string | null;
     email?: string | null;
     created_at: string;
+    is_archived?: boolean;
     school?: { name: string };
     assigned_professor?: { full_name: string };
 }
@@ -50,6 +51,8 @@ export default function Athletes() {
     const [professors, setProfessors] = useState<any[]>([]);
     const [selectedSchool, setSelectedSchool] = useState<string>('all');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+    const [showArchived, setShowArchived] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState<Profile | null>(null);
 
     useEffect(() => {
         fetchAthletes();
@@ -87,6 +90,32 @@ export default function Athletes() {
         const { data, error } = await query;
         if (!error && data) setAthletes(data);
         setLoading(false);
+    }
+
+    async function archiveAthlete(id: string, archive: boolean) {
+        const { error } = await supabase
+            .from('profiles')
+            .update({ is_archived: archive })
+            .eq('id', id);
+        if (!error) {
+            setFeedback({ type: 'success', msg: archive ? 'Atleta arquivado.' : 'Atleta reativado!' });
+            fetchAthletes();
+        } else {
+            setFeedback({ type: 'error', msg: 'Erro: ' + error.message });
+        }
+        setTimeout(() => setFeedback(null), 3000);
+    }
+
+    async function deleteAthlete(athlete: Profile) {
+        setDeleteConfirm(null);
+        const { error } = await supabase.rpc('delete_user_and_auth', { user_id_param: athlete.id });
+        if (!error) {
+            setFeedback({ type: 'success', msg: `Conta de ${athlete.full_name} apagada permanentemente.` });
+            fetchAthletes();
+        } else {
+            setFeedback({ type: 'error', msg: 'Erro ao apagar: ' + error.message });
+        }
+        setTimeout(() => setFeedback(null), 4000);
     }
 
     function calculateAge(dob: string | null) {
@@ -139,11 +168,14 @@ export default function Athletes() {
         setTimeout(() => setFeedback(null), 3000);
     }
 
-    const filtered = athletes.filter(a =>
-        a.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-        a.belt?.toLowerCase().includes(search.toLowerCase()) ||
-        a.role?.toLowerCase().includes(search.toLowerCase())
-    );
+    const filtered = athletes.filter(a => {
+        const archivedMatch = showArchived ? a.is_archived === true : !a.is_archived;
+        const searchMatch =
+            a.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+            a.belt?.toLowerCase().includes(search.toLowerCase()) ||
+            a.role?.toLowerCase().includes(search.toLowerCase());
+        return archivedMatch && searchMatch;
+    });
 
     const exportToPDF = () => {
         const doc = new jsPDF();
@@ -227,6 +259,13 @@ export default function Athletes() {
                             </button>
                             <button onClick={exportToPDF} className="btn-export pdf" title="Exportar para PDF">
                                 <Download size={16} /> PDF
+                            </button>
+                            <button
+                                onClick={() => setShowArchived(v => !v)}
+                                className={`btn-export ${showArchived ? 'archived-on' : 'archive-off'}`}
+                                title={showArchived ? 'Ver ativos' : 'Ver arquivados'}
+                            >
+                                <Archive size={16} /> {showArchived ? 'Ver Ativos' : 'Arquivados'}
                             </button>
                         </div>
                     )}
@@ -388,13 +427,42 @@ export default function Athletes() {
                                             <td className="text-muted">{new Date(athlete.created_at).toLocaleDateString('pt-PT')}</td>
                                             {(isAdmin || myProfile?.role === 'Professor') && (
                                                 <td>
-                                                    <button
-                                                        className="btn-icon btn-edit"
-                                                        onClick={() => startEdit(athlete)}
-                                                        title="Editar atleta"
-                                                    >
-                                                        <Edit2 size={16} />
-                                                    </button>
+                                                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                                                        <button
+                                                            className="btn-icon btn-edit"
+                                                            onClick={() => startEdit(athlete)}
+                                                            title="Editar atleta"
+                                                        >
+                                                            <Edit2 size={16} />
+                                                        </button>
+                                                        {canManageAllSchool && !athlete.is_archived && (
+                                                            <button
+                                                                className="btn-icon btn-archive"
+                                                                onClick={() => archiveAthlete(athlete.id, true)}
+                                                                title="Arquivar atleta"
+                                                            >
+                                                                <Archive size={16} />
+                                                            </button>
+                                                        )}
+                                                        {canManageAllSchool && athlete.is_archived && (
+                                                            <button
+                                                                className="btn-icon btn-unarchive"
+                                                                onClick={() => archiveAthlete(athlete.id, false)}
+                                                                title="Reativar atleta"
+                                                            >
+                                                                <ArchiveRestore size={16} />
+                                                            </button>
+                                                        )}
+                                                        {isAdmin && (
+                                                            <button
+                                                                className="btn-icon btn-delete"
+                                                                onClick={() => setDeleteConfirm(athlete)}
+                                                                title="Apagar conta permanentemente"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             )}
                                         </>
@@ -403,6 +471,36 @@ export default function Athletes() {
                             ))}
                         </tbody>
                     </table>
+                </div>
+            )}
+
+            {/* Modal de Confirmação de Eliminação */}
+            {deleteConfirm && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '1rem' }}>
+                    <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '1.25rem', padding: '2rem', maxWidth: '420px', width: '100%', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}>
+                        <div style={{ fontSize: '2.5rem', textAlign: 'center', marginBottom: '0.5rem' }}>⚠️</div>
+                        <h3 style={{ color: 'white', textAlign: 'center', margin: '0 0 0.5rem' }}>Apagar Conta Permanentemente</h3>
+                        <p style={{ color: 'var(--text-muted)', textAlign: 'center', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                            Tens a certeza que queres apagar <strong style={{ color: 'white' }}>{deleteConfirm.full_name}</strong>?
+                        </p>
+                        <p style={{ color: '#ef4444', textAlign: 'center', fontSize: '0.8rem', marginBottom: '1.5rem' }}>
+                            Esta ação é <strong>irreversível</strong> e apaga o perfil, histórico e a conta de autenticação.
+                        </p>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <button
+                                onClick={() => setDeleteConfirm(null)}
+                                style={{ flex: 1, padding: '0.65rem', borderRadius: '0.5rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'white', cursor: 'pointer', fontWeight: 600 }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={() => deleteAthlete(deleteConfirm)}
+                                style={{ flex: 1, padding: '0.65rem', borderRadius: '0.5rem', background: '#ef4444', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 600 }}
+                            >
+                                🗑️ Apagar Definitivamente
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -429,6 +527,21 @@ export default function Athletes() {
         .btn-export.excel:hover { background: rgba(16,185,129,0.25); }
         .btn-export.pdf { background: rgba(239,68,68,0.15); color: #ef4444; border-color: rgba(239,68,68,0.3); }
         .btn-export.pdf:hover { background: rgba(239,68,68,0.25); }
+        .btn-export.archive-off { background: rgba(245,158,11,0.1); color: #f59e0b; border-color: rgba(245,158,11,0.3); }
+        .btn-export.archive-off:hover { background: rgba(245,158,11,0.25); }
+        .btn-export.archived-on { background: rgba(245,158,11,0.25); color: #f59e0b; border-color: #f59e0b; }
+        .btn-icon { 
+          background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+          color: var(--text-muted); padding: 0.3rem; border-radius: 0.375rem;
+          cursor: pointer; display: flex; align-items: center; transition: all 0.2s;
+        }
+        .btn-icon:hover { color: white; background: rgba(255,255,255,0.08); }
+        .btn-edit:hover { color: #3b82f6; border-color: rgba(59,130,246,0.4); }
+        .btn-archive:hover { color: #f59e0b; border-color: rgba(245,158,11,0.4); }
+        .btn-unarchive:hover { color: #10b981; border-color: rgba(16,185,129,0.4); }
+        .btn-delete:hover { color: #ef4444; border-color: rgba(239,68,68,0.4); }
+        .athletes-table tr.archived-row td { opacity: 0.5; }
+
         .filter-select {
           background: var(--bg-card); border: 1px solid var(--border);
           border-radius: 0.5rem; padding: 0.5rem 1rem;
