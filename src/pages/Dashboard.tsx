@@ -206,8 +206,8 @@ export default function Dashboard() {
 
   // Atleta menor de 15 anos (calculado pela data de nascimento)
   const isUnder15 = (() => {
-    if (!profile.birth_date) return false;
-    const birth = new Date(profile.birth_date);
+    if (!profile.date_of_birth) return false;
+    const birth = new Date(profile.date_of_birth);
     const today = new Date();
     const age = today.getFullYear() - birth.getFullYear() -
       (today < new Date(today.getFullYear(), birth.getMonth(), birth.getDate()) ? 1 : 0);

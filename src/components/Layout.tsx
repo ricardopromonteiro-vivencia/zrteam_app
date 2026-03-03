@@ -11,6 +11,7 @@ export default function Layout() {
   const [profile, setProfile] = useState<any>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -84,6 +85,39 @@ export default function Layout() {
     loadSession();
   }, [navigate]);
 
+  // Verificar avisos não lidos
+  useEffect(() => {
+    if (!profile) return;
+    async function checkUnread() {
+      const { data } = await supabase
+        .from('announcements')
+        .select('created_at')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (data) {
+        const lastSeenKey = `announcements_last_seen_${profile.id}`;
+        const lastSeen = localStorage.getItem(lastSeenKey);
+        const latestTs = new Date(data.created_at).getTime();
+        if (!lastSeen || latestTs > parseInt(lastSeen)) {
+          setHasUnreadAnnouncements(true);
+        } else {
+          setHasUnreadAnnouncements(false);
+        }
+      }
+    }
+    checkUnread();
+
+    // Limpar badge se o utilizador está na página de avisos
+    if (location.pathname === '/avisos') {
+      if (profile?.id) {
+        localStorage.setItem(`announcements_last_seen_${profile.id}`, Date.now().toString());
+        setHasUnreadAnnouncements(false);
+      }
+    }
+  }, [profile, location.pathname]);
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate('/');
@@ -93,14 +127,14 @@ export default function Layout() {
     ? [
       { name: 'Dashboard', path: '/dashboard', icon: Home },
       { name: 'Aulas', path: '/aulas', icon: Calendar },
-      { name: 'Avisos', path: '/avisos', icon: Megaphone },
+      { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
       { name: 'Área Pessoal', path: '/settings', icon: Settings },
     ]
     : [
       { name: 'Dashboard', path: '/dashboard', icon: Activity },
       { name: 'Gestão de Aulas', path: '/admin/aulas', icon: Calendar },
       ...(profile?.role === 'Professor' ? [{ name: 'Aulas', path: '/aulas', icon: Calendar }] : []),
-      { name: 'Avisos', path: '/avisos', icon: Megaphone },
+      { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
       { name: 'Atletas', path: '/admin/atletas', icon: Users },
       ...(profile?.role === 'Admin' ? [{ name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 }] : []),
       { name: 'Pagamentos', path: '/admin/pagamentos', icon: CreditCard },
@@ -145,7 +179,10 @@ export default function Layout() {
               onClick={() => setIsSidebarOpen(false)}
             >
               <item.icon size={20} />
-              {item.name}
+              <span style={{ flex: 1 }}>{item.name}</span>
+              {(item as any).badge && (
+                <span className="nav-badge-dot" title="Tens avisos não lidos" />
+              )}
             </Link>
           ))}
           {(profile?.role === 'Admin' || profile?.role === 'Professor') && (
@@ -301,6 +338,19 @@ export default function Layout() {
           padding: 0.75rem 1.5rem;
           color: var(--text-muted);
           transition: all 0.2s;
+        }
+        .nav-badge-dot {
+          width: 9px;
+          height: 9px;
+          border-radius: 50%;
+          background: #ef4444;
+          flex-shrink: 0;
+          box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
+          animation: badge-pulse 2s infinite;
+        }
+        @keyframes badge-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(1.2); }
         }
         .nav-link:hover, .nav-link.active {
           background-color: rgba(255, 255, 255, 0.05);
