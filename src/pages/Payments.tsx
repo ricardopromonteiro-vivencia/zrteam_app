@@ -14,6 +14,7 @@ export default function Payments() {
     const [payments, setPayments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [filterUnpaid, setFilterUnpaid] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
@@ -91,9 +92,13 @@ export default function Payments() {
         }
     }
 
-    const filteredAthletes = athletes.filter(a =>
-        a.full_name.toLowerCase().includes(search.toLowerCase())
-    );
+    const filteredAthletes = athletes.filter(a => {
+        const nameMatch = a.full_name.toLowerCase().includes(search.toLowerCase());
+        const payment = payments.find(p => p.athlete_id === a.id);
+        const isPaid = payment?.status === 'Pago';
+        if (filterUnpaid && isPaid) return false;
+        return nameMatch;
+    });
 
     if (!isAdmin && !isProfessor) return <div className="p-8 text-danger">Acesso restrito.</div>;
 
@@ -124,15 +129,24 @@ export default function Payments() {
                 </div>
             </div>
 
-            <div className="search-panel">
-                <Search size={20} className="text-muted" />
-                <input
-                    type="text"
-                    placeholder="Pesquisar atleta..."
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className="search-input-full"
-                />
+            <div className="search-bar-row">
+                <div className="search-panel">
+                    <Search size={20} className="text-muted" />
+                    <input
+                        type="text"
+                        placeholder="Pesquisar atleta..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        className="search-input-full"
+                    />
+                </div>
+                <button
+                    className={`btn-filter-unpaid ${filterUnpaid ? 'active' : ''}`}
+                    onClick={() => setFilterUnpaid(v => !v)}
+                >
+                    <Clock size={16} />
+                    {filterUnpaid ? 'A mostrar: Não Pagou' : 'Filtrar: Não Pagou'}
+                </button>
             </div>
 
             {loading ? (
@@ -170,13 +184,25 @@ export default function Payments() {
             <style>{`
                 .payments-page { max-width: 800px; margin: 0 auto; }
                 .month-selector { display: flex; gap: 0.5rem; }
+                .search-bar-row { display: flex; gap: 0.75rem; margin: 1.5rem 0; align-items: center; flex-wrap: wrap; }
+                .search-bar-row .search-panel { flex: 1; margin: 0; }
+                .btn-filter-unpaid {
+                    display: flex; align-items: center; gap: 0.5rem;
+                    padding: 0.6rem 1rem; border-radius: 0.75rem; font-size: 0.8rem;
+                    font-weight: 600; cursor: pointer; white-space: nowrap;
+                    background: rgba(245,158,11,0.08); color: #f59e0b;
+                    border: 1px solid rgba(245,158,11,0.25); transition: all 0.2s;
+                }
+                .btn-filter-unpaid.active {
+                    background: rgba(245,158,11,0.2); border-color: #f59e0b;
+                }
+                .btn-filter-unpaid:hover { background: rgba(245,158,11,0.2); }
                 .month-selector select { width: auto; min-width: 120px; }
                 
                 .search-panel { 
                     background: var(--bg-card); border: 1px solid var(--border); 
                     border-radius: 0.75rem; padding: 0.75rem 1rem; 
                     display: flex; align-items: center; gap: 0.75rem;
-                    margin: 1.5rem 0;
                 }
                 .search-input-full { 
                     background: transparent; border: none; outline: none; 

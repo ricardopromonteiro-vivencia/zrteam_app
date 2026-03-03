@@ -147,6 +147,26 @@ export default function CheckIn() {
     };
 
 
+    // Reverter Check-in: de Presente → Marcado, subtrai a presença
+    const handleRevertCheckIn = async (booking: any) => {
+        if (!confirm(`Reverter check-in de ${booking.user_id?.full_name}?`)) return;
+        setLoading(true);
+        // Decrementar contagem
+        await supabase.rpc('decrement_attended_classes', { user_id_param: booking.user_id?.id });
+        // Mudar status para Marcado
+        const { error } = await supabase
+            .from('class_bookings')
+            .update({ status: 'Marcado' })
+            .eq('id', booking.id);
+        if (!error) {
+            loadBookings(selectedClass);
+        } else {
+            alert('Erro ao reverter: ' + error.message);
+        }
+        setLoading(false);
+    };
+
+
     // Remover inscrição (mesmo que Presente)
     const handleRemoveBooking = async (booking: any) => {
         if (!confirm(`Remover ${booking.user_id?.full_name} desta aula?`)) return;
@@ -167,9 +187,9 @@ export default function CheckIn() {
     };
 
     const filteredAthletes = searchQuery.trim().length > 1
-        ? allSchoolAthletes.filter(a =>
+        ? allSchoolAthletes.filter((a: any) =>
             a.full_name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-            !bookings.some(b => b.user_id?.id === a.id)
+            !bookings.some((b: any) => b.user_id?.id === a.id)
         )
         : [];
 
@@ -290,10 +310,19 @@ export default function CheckIn() {
                                                     <CheckCircle size={18} /> Check-in
                                                 </button>
                                             )}
+                                            {booking.status === 'Presente' && (
+                                                <button
+                                                    className="btn-revert-checkin"
+                                                    onClick={() => handleRevertCheckIn(booking)}
+                                                    title="Reverter check-in"
+                                                >
+                                                    <XCircle size={16} /> Reverter
+                                                </button>
+                                            )}
                                             <button
                                                 className="btn-remove-booking"
                                                 onClick={() => handleRemoveBooking(booking)}
-                                                title="Remover incrição"
+                                                title="Remover inscrição"
                                             >
                                                 <XCircle size={16} />
                                             </button>
@@ -469,6 +498,23 @@ export default function CheckIn() {
           transition: all 0.2s;
         }
         .btn-checkin:hover { background-color: var(--primary-dark); }
+
+        .btn-revert-checkin {
+          background-color: rgba(245,158,11,0.1);
+          color: #f59e0b;
+          border: 1px solid rgba(245,158,11,0.3);
+          padding: 0.4rem 0.9rem;
+          border-radius: 0.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          font-size: 0.8rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .btn-revert-checkin:hover { background-color: rgba(245,158,11,0.25); }
+
 
         .today-classes { margin-bottom: 2rem; }
         
