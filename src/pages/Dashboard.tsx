@@ -521,11 +521,6 @@ export default function Dashboard() {
                 .bar-label { font-size: 0.75rem; color: var(--primary); font-weight: 700; }
                 .bar-day { font-size: 0.7rem; color: var(--text-muted); text-transform: capitalize; }
 
-                .checkin-error-text { color: var(--danger); font-size: 0.75rem; margin-top: 0.5rem; text-align: center; }
-                .loading-spinner { display: flex; align-items: center; gap: 0.5rem; }
-                .btn-secure-checkin.step-locating { background: var(--border); color: var(--text-muted); }
-                .btn-secure-checkin.step-success { background: #10b981; }
-                
                 .dashboard-grid { display: grid; grid-template-columns: 1fr 350px; gap: 1.5rem; align-items: start; }
                 .progression-card, .agenda-card { background: var(--bg-card); padding: 1.5rem; border-radius: 1rem; border: 1px solid var(--border); }
                 
@@ -548,53 +543,6 @@ export default function Dashboard() {
                 .next-milestone { background: rgba(16, 185, 129, 0.05); border-radius: 0.5rem; padding: 1rem; border: 1px solid rgba(16, 185, 129, 0.1); }
                 .next-milestone p { font-size: 0.875rem; margin-bottom: 0.25rem; color: var(--text-main); }
                 .next-milestone strong { color: var(--primary); }
-
-                .secure-checkin-banner { 
-                    margin-top: 1.5rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
-                    border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 1rem; padding: 1.5rem; display: flex; 
-                    justify-content: space-between; align-items: center; gap: 1.5rem;
-                }
-                .banner-content h3 { font-size: 1.125rem; color: var(--primary); font-weight: 600; margin-bottom: 0.25rem; }
-                .banner-content p { font-size: 0.875rem; color: var(--text-muted); }
-                .btn-secure-checkin { 
-                    background: var(--primary); color: white; padding: 0.75rem 1.25rem; border-radius: 0.5rem; 
-                    font-weight: 700; border: none; cursor: pointer; transition: all 0.2s; white-space: nowrap;
-                }
-                .btn-secure-checkin:hover { background: var(--primary-dark); transform: translateY(-1px); }
-                .btn-secure-checkin:disabled { opacity: 0.7; cursor: not-allowed; }
-                .btn-secure-checkin.loading { animation: pulse 1s infinite; }
-
-                .class-selection-popup { background: var(--bg-card); border: 1px solid var(--primary); padding: 1rem; border-radius: 0.75rem; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
-                .class-selection-popup h4 { font-size: 0.875rem; color: white; margin-bottom: 0.75rem; text-align: center; }
-                .class-selection-list { display: flex; flex-direction: column; gap: 0.5rem; }
-                .btn-class-option { background: rgba(16, 185, 129, 0.1); border: 1px solid var(--primary); color: var(--primary); padding: 0.5rem; border-radius: 0.5rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-                .btn-class-option:hover { background: var(--primary); color: white; }
-                .btn-cancel-selection { background: transparent; border: none; color: var(--text-muted); font-size: 0.7rem; cursor: pointer; padding-top: 0.25rem; }
-                .btn-cancel-selection:hover { color: var(--danger); text-decoration: underline; }
-                .text-secondary { color: #fb923c !important; }
-
-                /* GPS Help Card */
-                .gps-help-card {
-                  background: rgba(239, 68, 68, 0.08);
-                  border: 1px solid rgba(239, 68, 68, 0.3);
-                  border-radius: 0.75rem;
-                  padding: 1.25rem;
-                  margin-top: 0.75rem;
-                  display: flex;
-                  flex-direction: column;
-                  gap: 0.75rem;
-                  max-width: 360px;
-                }
-                .gps-help-icon { font-size: 1.75rem; text-align: center; }
-                .gps-help-card h4 { color: white; font-weight: 700; margin: 0; text-align: center; font-size: 0.95rem; }
-                .gps-help-card > p { color: var(--text-muted); font-size: 0.78rem; text-align: center; }
-                .gps-help-steps { display: flex; flex-direction: column; gap: 0.6rem; }
-                .gps-step { display: flex; gap: 0.75rem; align-items: flex-start; background: rgba(255,255,255,0.04); padding: 0.6rem; border-radius: 0.5rem; }
-                .gps-step-icon { font-size: 1.25rem; flex-shrink: 0; margin-top: 0.1rem; }
-                .gps-step strong { color: white; font-size: 0.8rem; display: block; }
-                .gps-step p { color: var(--text-muted); font-size: 0.72rem; margin: 0.2rem 0 0; }
-                .btn-gps-reload { background: var(--primary); color: white; border: none; padding: 0.6rem; border-radius: 0.5rem; font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: background 0.2s; width: 100%; }
-                .btn-gps-reload:hover { background: var(--primary-dark); }
 
                 .agenda-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
                 .agenda-title { font-size: 1.125rem; font-weight: 600; color: white; }
