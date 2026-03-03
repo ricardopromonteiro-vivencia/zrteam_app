@@ -1,51 +1,51 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Building2, MapPin, Plus, Edit2, Trash2, CheckCircle, HelpCircle } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Circle, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
-
-// Corrigir ícone padrão do Leaflet que desaparece no build/react
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-const DefaultIcon = L.icon({
-    iconUrl: markerIcon,
-    shadowUrl: markerShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
-
-function LocationPicker({ onLocationSelect, position }: { onLocationSelect: (lat: number, lng: number) => void, position: [number, number] }) {
-    useMapEvents({
-        click(e) {
-            onLocationSelect(e.latlng.lat, e.latlng.lng);
-        },
-    });
-    return position ? <Marker position={position} /> : null;
-}
+import { useOutletContext } from 'react-router-dom';
+import { Building2, Plus, Edit2, Trash2, CheckCircle, HelpCircle, User } from 'lucide-react';
 
 export default function Schools() {
+    const { profile } = useOutletContext<{ profile: any }>();
     const [schools, setSchools] = useState<any[]>([]);
+    const [professors, setProfessors] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [editingSchool, setEditingSchool] = useState<any>(null);
     const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
+    // Apenas Admin pode aceder
+    if (profile?.role !== 'Admin') {
+        return (
+            <div style={{ padding: '2rem', color: 'var(--danger)' }}>
+                Acesso restrito. Apenas Administradores podem gerir escolas.
+            </div>
+        );
+    }
+
     useEffect(() => {
-        loadSchools();
+        loadData();
     }, []);
 
-    async function loadSchools() {
+    async function loadData() {
         setLoading(true);
-        const { data } = await supabase.from('schools').select('*').order('name');
-        if (data) setSchools(data);
+        const { data: schoolsData } = await supabase
+            .from('schools')
+            .select('*, head_professor:head_professor_id(id, full_name)')
+            .order('name');
+        if (schoolsData) setSchools(schoolsData);
+
+        const { data: profsData } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('role', ['Professor', 'Admin'])
+            .order('full_name');
+        if (profsData) setProfessors(profsData);
+
         setLoading(false);
     }
 
     const handleDelete = async (id: string) => {
         if (confirmDelete === id) {
             const { error } = await supabase.from('schools').delete().eq('id', id);
-            if (!error) loadSchools();
+            if (!error) loadData();
             setConfirmDelete(null);
         } else {
             setConfirmDelete(id);
@@ -58,9 +58,7 @@ export default function Schools() {
 
         const schoolData = {
             name: editingSchool.name,
-            latitude: parseFloat(editingSchool.latitude),
-            longitude: parseFloat(editingSchool.longitude),
-            radius_meters: parseInt(editingSchool.radius_meters)
+            head_professor_id: editingSchool.head_professor_id || null
         };
 
         let error;
@@ -79,7 +77,7 @@ export default function Schools() {
 
         if (!error) {
             setEditingSchool(null);
-            loadSchools();
+            loadData();
         } else {
             alert('Erro ao guardar: ' + error.message);
         }
@@ -89,16 +87,17 @@ export default function Schools() {
     return (
         <div className="schools-page animate-fade-in">
             <header className="page-header">
-                <div className="header-info">
+                <div>
                     <h1 className="page-title">Gestão de Escolas</h1>
-                    <p className="page-subtitle">Adiciona e gere as localizações das academias ZR Team.</p>
+                    <p className="page-subtitle">Gere as academias ZR Team e os professores responsáveis.</p>
                 </div>
-                <button className="btn-primary" onClick={() => setEditingSchool({ name: '', latitude: 41.3833, longitude: -8.7667, radius_meters: 50 })}>
+                <button className="btn-primary" onClick={() => setEditingSchool({ name: '', head_professor_id: '' })}>
                     <Plus size={20} /> Nova Escola
                 </button>
             </header>
 
-            {/* Listagem de Escolas */}
+            {loading && !editingSchool && <p className="loading-text">A carregar escolas...</p>}
+
             <div className="schools-grid">
                 {schools.map(school => (
                     <div key={school.id} className="school-card">
@@ -107,11 +106,16 @@ export default function Schools() {
                             <h3>{school.name}</h3>
                         </div>
                         <div className="school-details">
-                            <p><MapPin size={16} /> Lat: {school.latitude.toFixed(4)}, Lng: {school.longitude.toFixed(4)}</p>
-                            <p className="radius-tag">Raio: {school.radius_meters}m</p>
+                            <p>
+                                <User size={14} />
+                                {school.head_professor?.full_name || <span style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>Sem professor responsável</span>}
+                            </p>
                         </div>
                         <div className="school-actions">
-                            <button className="icon-btn edit" onClick={() => setEditingSchool(school)}>
+                            <button className="icon-btn edit" onClick={() => setEditingSchool({
+                                ...school,
+                                head_professor_id: school.head_professor_id || ''
+                            })}>
                                 <Edit2 size={18} />
                             </button>
                             <button
@@ -130,12 +134,10 @@ export default function Schools() {
                 ))}
             </div>
 
-            {loading && !editingSchool && <p className="loading-text">A carregar escolas...</p>}
-
-            {/* Modal/Form */}
+            {/* Modal de Escola */}
             {editingSchool && (
                 <div className="modal-overlay">
-                    <div className="modal-content school-modal">
+                    <div className="modal-content school-modal animate-fade-in">
                         <h2>{editingSchool.id ? 'Editar Escola' : 'Nova Escola'}</h2>
                         <form onSubmit={handleSave} className="school-form">
                             <div className="form-group">
@@ -150,46 +152,18 @@ export default function Schools() {
                                 />
                             </div>
 
-                            <div className="map-container-wrapper">
-                                <label className="form-label">Localização (Clica no mapa)</label>
-                                <div className="leaflet-map-box">
-                                    <MapContainer
-                                        center={[editingSchool.latitude, editingSchool.longitude]}
-                                        zoom={15}
-                                        style={{ height: '300px', width: '100%', borderRadius: '0.75rem' }}
-                                    >
-                                        <TileLayer
-                                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                            attribution='&copy; OpenStreetMap contributors'
-                                        />
-                                        <LocationPicker
-                                            position={[editingSchool.latitude, editingSchool.longitude]}
-                                            onLocationSelect={(lat, lng) => setEditingSchool({ ...editingSchool, latitude: lat, longitude: lng })}
-                                        />
-                                        <Circle
-                                            center={[editingSchool.latitude, editingSchool.longitude]}
-                                            radius={editingSchool.radius_meters}
-                                            pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 0.2 }}
-                                        />
-                                    </MapContainer>
-                                </div>
-                                <div className="form-row coords-row">
-                                    <div className="coord-item">Lat: {parseFloat(editingSchool.latitude).toFixed(6)}</div>
-                                    <div className="coord-item">Lng: {parseFloat(editingSchool.longitude).toFixed(6)}</div>
-                                </div>
-                            </div>
-
                             <div className="form-group">
-                                <label className="form-label">Raio de Check-in: <strong>{editingSchool.radius_meters} metros</strong></label>
-                                <input
-                                    type="range"
-                                    min="20"
-                                    max="500"
-                                    step="5"
-                                    className="form-range"
-                                    value={editingSchool.radius_meters}
-                                    onChange={e => setEditingSchool({ ...editingSchool, radius_meters: parseInt(e.target.value) })}
-                                />
+                                <label className="form-label">Professor Responsável</label>
+                                <select
+                                    className="form-input"
+                                    value={editingSchool.head_professor_id}
+                                    onChange={e => setEditingSchool({ ...editingSchool, head_professor_id: e.target.value })}
+                                >
+                                    <option value="">— Sem responsável —</option>
+                                    {professors.map(p => (
+                                        <option key={p.id} value={p.id}>{p.full_name}</option>
+                                    ))}
+                                </select>
                             </div>
 
                             <div className="modal-actions">
@@ -204,15 +178,14 @@ export default function Schools() {
             )}
 
             <style>{`
-        .schools-page { max-width: 1200px; margin: 0 auto; }
-        .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; }
-        .page-subtitle { color: var(--text-muted); font-size: 0.875rem; }
-        
+        .schools-page { max-width: 900px; margin: 0 auto; }
+        .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+        .page-subtitle { color: var(--text-muted); font-size: 0.875rem; margin-top: 0.25rem; }
         .loading-text { text-align: center; color: var(--primary); margin-top: 2rem; }
 
         .schools-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
           gap: 1.5rem;
           margin-top: 2rem;
         }
@@ -223,40 +196,23 @@ export default function Schools() {
           padding: 1.5rem;
           display: flex;
           flex-direction: column;
-          gap: 1rem;
-          transition: transform 0.2s;
+          gap: 0.75rem;
+          transition: transform 0.2s, border-color 0.2s;
         }
         .school-card:hover { transform: translateY(-3px); border-color: var(--primary); }
-        
-        .school-header {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-        }
+        .school-header { display: flex; align-items: center; gap: 0.75rem; }
+        .school-header h3 { font-size: 1rem; font-weight: 700; color: white; }
         .school-icon {
           color: var(--primary);
           background: rgba(16, 185, 129, 0.1);
           padding: 0.5rem;
           border-radius: 0.75rem;
+          flex-shrink: 0;
         }
-        .school-details {
-          font-size: 0.875rem;
-          color: var(--text-muted);
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-        .radius-tag {
-          background: rgba(16, 185, 129, 0.1);
-          color: var(--primary);
-          padding: 0.25rem 0.75rem;
-          border-radius: 9999px;
-          display: inline-flex; align-items: center; width: fit-content; font-weight: 600; font-size: 0.75rem;
-        }
+        .school-details { font-size: 0.875rem; color: var(--text-muted); }
         .school-details p { display: flex; align-items: center; gap: 0.5rem; }
-        
         .school-actions {
-          display: flex; gap: 0.5rem; margin-top: 1rem; padding-top: 1rem;
+          display: flex; gap: 0.5rem; margin-top: 0.5rem; padding-top: 1rem;
           border-top: 1px solid var(--border);
         }
         .icon-btn {
@@ -268,7 +224,6 @@ export default function Schools() {
         .icon-btn.delete:hover { background: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: var(--danger); }
         .icon-btn.delete.confirming { background: var(--danger); color: white; border-color: var(--danger); }
 
-        /* Modal Styles */
         .modal-overlay {
           position: fixed; top: 0; left: 0; right: 0; bottom: 0;
           background: rgba(0,0,0,0.8); backdrop-filter: blur(4px);
@@ -277,33 +232,21 @@ export default function Schools() {
         }
         .modal-content.school-modal {
           background: var(--bg-card); border: 1px solid var(--border);
-          padding: 2rem; border-radius: 1.5rem; width: 100%; max-width: 600px;
-          max-height: 90vh; overflow-y: auto;
+          padding: 2rem; border-radius: 1.5rem; width: 100%; max-width: 480px;
         }
-        
-        .school-form { display: flex; flex-direction: column; gap: 1.5rem; }
+        .modal-content h2 { color: white; margin-bottom: 1.5rem; }
+        .school-form { display: flex; flex-direction: column; gap: 1.25rem; }
         .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
         .form-label { font-size: 0.875rem; color: var(--text-muted); font-weight: 500; }
         .form-input {
           background: rgba(255,255,255,0.05); border: 1px solid var(--border);
-          border-radius: 0.75rem; padding: 0.75rem 1rem; color: white;
+          border-radius: 0.75rem; padding: 0.75rem 1rem; color: white; width: 100%;
         }
-        
-        .leaflet-map-box { border: 2px solid var(--border); border-radius: 0.75rem; overflow: hidden; }
-        .coords-row { display: flex; gap: 1rem; margin-top: 0.5rem; }
-        .coord-item { font-size: 0.75rem; color: var(--primary); font-family: monospace; }
-        
-        .form-range {
-            width: 100%; height: 6px; background: var(--border); border-radius: 3px;
-            appearance: none; outline: none; transition: 0.2s;
-        }
-        .form-range::-webkit-slider-thumb {
-            appearance: none; width: 18px; height: 18px; background: var(--primary);
-            border-radius: 50%; cursor: pointer;
-        }
+        .form-input option { background: #1a1a1a; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 0.5rem; }
 
-        .modal-actions {
-          display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1rem;
+        @media (max-width: 480px) {
+          .schools-grid { grid-template-columns: 1fr; }
         }
       `}</style>
         </div>

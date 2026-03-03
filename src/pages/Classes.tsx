@@ -311,7 +311,7 @@ export default function Classes() {
                                 <div key={cls.id} className={`class-card ${isEnrolled ? 'enrolled' : ''}`}>
                                     <div className="class-header">
                                         <h3>{cls.title}</h3>
-                                        {isAdmin && (
+                                        {isAdmin && (profile?.role === 'Admin' || cls.professor_id?.id === profile?.id) && (
                                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                 <button onClick={() => handleOpenEditModal(cls)} className="btn-icon">
                                                     <Edit2 size={18} />
@@ -346,7 +346,8 @@ export default function Classes() {
                                         )}
                                     </div>
 
-                                    {!isAdmin && (
+                                    {/* Inscrição: Atletas e Professores podem inscrever-se */}
+                                    {(profile?.role === 'Atleta' || profile?.role === 'Professor') && (
                                         <button
                                             className={`btn-booking mt-4 w-full ${isEnrolled ? 'btn-enrolled' : 'btn-primary'}`}
                                             onClick={() => handleBooking(cls.id)}

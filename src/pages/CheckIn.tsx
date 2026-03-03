@@ -11,8 +11,11 @@ export default function CheckIn() {
     const [allSchoolAthletes, setAllSchoolAthletes] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(false);
+    const [pendingAthleteConfirm, setPendingAthleteConfirm] = useState<any>(null);
 
-    const isAdmin = profile?.role === 'Admin' || profile?.role === 'Professor';
+    const isAdmin = profile?.role === 'Admin';
+    const isProfessor = profile?.role === 'Professor';
+    const isHeadProfessor = profile?.school?.head_professor_id === profile?.id;
 
     // Buscar aulas e atletas da própria escola
     useEffect(() => {
@@ -33,20 +36,30 @@ export default function CheckIn() {
         // Se for Admin, não aplicamos filtro de escola (vê todas as aulas de hoje)
 
         classesQuery.then(({ data }) => {
-            if (data) setTodayClasses(data);
+            if (data) {
+                const sorted = [...data].sort((a: any, b: any) =>
+                    a.start_time.localeCompare(b.start_time)
+                );
+                setTodayClasses(sorted);
+            }
         });
 
-        // Todos os atletas da escola (se o professor tiver escola)
+        // Atletas filtrados por professor (se Profó só vê os seus próprios; Admin vê todos da escola)
         if (profile?.school_id) {
-            supabase
+            let athleteQuery = supabase
                 .from('profiles')
                 .select('id, full_name, belt, degrees')
                 .eq('school_id', profile.school_id)
                 .eq('role', 'Atleta')
-                .order('full_name')
-                .then(({ data }) => {
-                    if (data) setAllSchoolAthletes(data);
-                });
+                .order('full_name');
+
+            if (isProfessor && !isHeadProfessor) {
+                athleteQuery = athleteQuery.eq('assigned_professor_id', profile.id);
+            }
+
+            athleteQuery.then(({ data }) => {
+                if (data) setAllSchoolAthletes(data);
+            });
         }
     }, [profile]);
 
@@ -99,12 +112,17 @@ export default function CheckIn() {
         loadBookings(selectedClass);
     };
 
-    // Check-in para atleta que NÃO estava inscrito (Inscreve e marca presença)
+    // Solicita confirmação antes de fazer check-in rápido
+    const handleQuickCheckInRequest = (athlete: any) => {
+        setPendingAthleteConfirm(athlete);
+        setSearchQuery('');
+    };
+
+    // Confirma e executa o check-in após popup
     const handleQuickCheckIn = async (athlete: any) => {
         if (!selectedClass) return;
-
+        setPendingAthleteConfirm(null);
         setLoading(true);
-        // 1. Criar a reserva já como Presente
         const { error } = await supabase
             .from('class_bookings')
             .insert({
@@ -116,16 +134,34 @@ export default function CheckIn() {
             .single();
 
         if (error) {
-            if (error.code === '23505') { // Unicidade: já estava inscrito?
+            if (error.code === '23505') {
                 alert('Este atleta já está na lista de inscritos.');
             } else {
                 alert('Erro ao registar: ' + error.message);
             }
         } else {
-            // 2. Incrementar contador
             await supabase.rpc('increment_attended_classes', { user_id_param: athlete.id });
             await loadBookings(selectedClass);
-            setSearchQuery('');
+        }
+        setLoading(false);
+    };
+
+
+    // Remover inscrição (mesmo que Presente)
+    const handleRemoveBooking = async (booking: any) => {
+        if (!confirm(`Remover ${booking.user_id?.full_name} desta aula?`)) return;
+        setLoading(true);
+        if (booking.status === 'Presente') {
+            await supabase.rpc('decrement_attended_classes', { user_id_param: booking.user_id?.id });
+        }
+        const { error } = await supabase
+            .from('class_bookings')
+            .delete()
+            .eq('id', booking.id);
+        if (!error) {
+            loadBookings(selectedClass);
+        } else {
+            alert('Erro ao remover: ' + error.message);
         }
         setLoading(false);
     };
@@ -144,7 +180,7 @@ export default function CheckIn() {
         return now > classEnd;
     };
 
-    if (!isAdmin) {
+    if (!isAdmin && !isProfessor) {
         return <div style={{ color: 'var(--danger)', padding: '2rem' }}>Acesso restrito a Professores e Administradores.</div>;
     }
 
@@ -196,7 +232,7 @@ export default function CheckIn() {
                                         <div
                                             key={athlete.id}
                                             className="search-result-item"
-                                            onClick={() => handleQuickCheckIn(athlete)}
+                                            onClick={() => handleQuickCheckInRequest(athlete)}
                                         >
                                             <div className="athlete-info">
                                                 <span className="athlete-name">{athlete.full_name}</span>
@@ -254,6 +290,13 @@ export default function CheckIn() {
                                                     <CheckCircle size={18} /> Check-in
                                                 </button>
                                             )}
+                                            <button
+                                                className="btn-remove-booking"
+                                                onClick={() => handleRemoveBooking(booking)}
+                                                title="Remover incrição"
+                                            >
+                                                <XCircle size={16} />
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -261,6 +304,24 @@ export default function CheckIn() {
                         )}
                     </div>
                 </>
+            )}
+
+            {/* Popup de Confirmação de Check-in Rápido */}
+            {pendingAthleteConfirm && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: '1rem' }}>
+                    <div className="modal-confirm-card animate-fade-in">
+                        <div style={{ fontSize: '2.5rem', textAlign: 'center' }}>✏️</div>
+                        <h3 style={{ color: 'white', textAlign: 'center', margin: '0.5rem 0' }}>Confirmar Check-in</h3>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center' }}>
+                            Adicionar <strong style={{ color: 'white' }}>{pendingAthleteConfirm.full_name}</strong> ({pendingAthleteConfirm.belt}) à aula <strong style={{ color: 'var(--primary)' }}>{selectedClass?.title}</strong>?
+                        </p>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textAlign: 'center', marginTop: '-0.25rem' }}>Será marcado como <em>Presente</em> e a presença será contabilizada.</p>
+                        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', justifyContent: 'center' }}>
+                            <button className="btn-danger" style={{ flex: 1, justifyContent: 'center', padding: '0.65rem' }} onClick={() => setPendingAthleteConfirm(null)}>Cancelar</button>
+                            <button className="btn-checkin" style={{ flex: 1, justifyContent: 'center', padding: '0.65rem' }} onClick={() => handleQuickCheckIn(pendingAthleteConfirm)}>✅ Confirmar</button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             <style>{`
@@ -427,6 +488,19 @@ export default function CheckIn() {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+
+        .modal-confirm-card {
+          background: var(--bg-card);
+          border: 1px solid var(--border);
+          border-radius: 1.25rem;
+          padding: 1.5rem 2rem;
+          max-width: 380px;
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          box-shadow: 0 25px 60px rgba(0,0,0,0.6);
         }
       `}</style>
         </div>

@@ -41,7 +41,7 @@ export default function Terms() {
 
                 <section>
                     <h2>6. Check-in e Presenças</h2>
-                    <p>O sistema de check-in utiliza a localização (GPS) para validar a presença física no local da aula. Ao clicares em "Confirmar Presença", autorizas o browser a capturar a tua localização momentânea para fins exclusivos de validação de aula.</p>
+                    <p>O registo de presença nas aulas é efetuado pelo professor ou administrador responsável, através do Painel de Check-in. O atleta não necessita de realizar qualquer ação para confirmar a sua presença — cabe ao professor validar e registar as presenças no final ou durante a aula.</p>
                 </section>
             </div>
 

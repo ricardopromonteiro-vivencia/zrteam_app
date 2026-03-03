@@ -40,6 +40,8 @@ export default function Athletes() {
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
     const isAdmin = myProfile?.role === 'Admin';
+    const isHeadProfessor = myProfile?.school?.head_professor_id === myProfile?.id;
+    const canManageAllSchool = isAdmin || isHeadProfessor;
 
     const [schools, setSchools] = useState<any[]>([]);
     const [professors, setProfessors] = useState<any[]>([]);
@@ -66,11 +68,15 @@ export default function Athletes() {
         setLoading(true);
         let query = supabase
             .from('profiles')
-            .select('*, school:schools(name), assigned_professor:profiles!assigned_professor_id(full_name)')
+            .select('*, school:schools!school_id(name), assigned_professor:profiles!assigned_professor_id(full_name)')
             .order('full_name', { ascending: sortOrder === 'asc' });
 
         if (myProfile?.role === 'Professor') {
-            query = query.eq('school_id', myProfile.school_id);
+            if (isHeadProfessor) {
+                query = query.eq('school_id', myProfile.school_id);
+            } else {
+                query = query.eq('assigned_professor_id', myProfile.id);
+            }
         } else if (isAdmin && selectedSchool !== 'all') {
             query = query.eq('school_id', selectedSchool);
         }
@@ -157,7 +163,7 @@ export default function Athletes() {
                     </p>
                 </div>
                 <div className="header-actions">
-                    {isAdmin && (
+                    {canManageAllSchool && (
                         <select
                             className="filter-select"
                             value={selectedSchool}
@@ -209,7 +215,7 @@ export default function Athletes() {
                                 <th>Graus</th>
                                 <th>Aulas</th>
                                 <th>Membro desde</th>
-                                {isAdmin && <th>Ações</th>}
+                                {(isAdmin || myProfile?.role === 'Professor') && <th>Ações</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -323,7 +329,7 @@ export default function Athletes() {
                                             <td className="text-center">{athlete.degrees}°</td>
                                             <td className="text-center">{athlete.attended_classes}</td>
                                             <td className="text-muted">{new Date(athlete.created_at).toLocaleDateString('pt-PT')}</td>
-                                            {isAdmin && (
+                                            {(isAdmin || myProfile?.role === 'Professor') && (
                                                 <td>
                                                     <button
                                                         className="btn-icon btn-edit"

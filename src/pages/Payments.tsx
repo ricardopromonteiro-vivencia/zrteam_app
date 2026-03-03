@@ -17,10 +17,12 @@ export default function Payments() {
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-    const isAdmin = profile?.role === 'Admin' || profile?.role === 'Professor';
+    const isAdmin = profile?.role === 'Admin';
+    const isProfessor = profile?.role === 'Professor';
+    const isHeadProfessor = profile?.school?.head_professor_id === profile?.id;
 
     useEffect(() => {
-        if (isAdmin) {
+        if (isAdmin || isProfessor) {
             fetchData();
         }
     }, [profile, selectedMonth, selectedYear]);
@@ -36,7 +38,11 @@ export default function Payments() {
             .order('full_name');
 
         if (profile?.role === 'Professor') {
-            athletesQuery = athletesQuery.eq('school_id', profile.school_id);
+            if (isHeadProfessor) {
+                athletesQuery = athletesQuery.eq('school_id', profile.school_id);
+            } else {
+                athletesQuery = athletesQuery.eq('assigned_professor_id', profile.id);
+            }
         }
 
         const { data: athletesData } = await athletesQuery;
@@ -55,7 +61,7 @@ export default function Payments() {
     }
 
     async function togglePayment(athleteId: string, currentStatus: string | undefined) {
-        if (!isAdmin) return;
+        if (!isAdmin && !isProfessor) return;
 
         if (currentStatus === 'Pago') {
             // Se já está pago, talvez queira marcar como pendente ou apagar
@@ -89,7 +95,7 @@ export default function Payments() {
         a.full_name.toLowerCase().includes(search.toLowerCase())
     );
 
-    if (!isAdmin) return <div className="p-8 text-danger">Acesso restrito.</div>;
+    if (!isAdmin && !isProfessor) return <div className="p-8 text-danger">Acesso restrito.</div>;
 
     return (
         <div className="payments-page animate-fade-in">

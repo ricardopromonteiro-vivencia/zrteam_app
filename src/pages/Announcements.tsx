@@ -29,7 +29,7 @@ export default function Announcements() {
         setLoading(true);
         const { data } = await supabase
             .from('announcements')
-            .select('*, author:profiles(full_name), school:schools(name)')
+            .select('*, author:profiles(full_name), school:schools!school_id(name)')
             .order('created_at', { ascending: false });
 
         if (data) setAnnouncements(data);

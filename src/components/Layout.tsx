@@ -47,7 +47,7 @@ export default function Layout() {
 
       let { data, error } = await supabase
         .from('profiles')
-        .select('*, school:schools(name), assigned_professor:profiles!assigned_professor_id(full_name)')
+        .select('*, school:schools!school_id(name, head_professor_id), assigned_professor:profiles!assigned_professor_id(full_name)')
         .eq('id', session.user.id)
         .single();
 
@@ -99,10 +99,12 @@ export default function Layout() {
     : [
       { name: 'Dashboard', path: '/dashboard', icon: Activity },
       { name: 'Gestão de Aulas', path: '/admin/aulas', icon: Calendar },
+      ...(profile?.role === 'Professor' ? [{ name: 'Aulas', path: '/aulas', icon: Calendar }] : []),
       { name: 'Avisos', path: '/avisos', icon: Megaphone },
       { name: 'Atletas', path: '/admin/atletas', icon: Users },
-      { name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 },
-      { name: 'Check-in', path: '/admin/checkin', icon: Activity },
+      ...(profile?.role === 'Admin' ? [{ name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 }] : []),
+      { name: 'Pagamentos', path: '/admin/pagamentos', icon: CreditCard },
+      { name: 'Check-in', path: '/admin/checkin', icon: ShieldCheck },
       { name: 'Definições', path: '/settings', icon: Settings },
     ];
 
