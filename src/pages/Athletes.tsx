@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useOutletContext } from 'react-router-dom';
-import { Edit2, Save, X, Search, Users } from 'lucide-react';
+import { Edit2, Save, X, Search, Users, Download } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 const BELTS = [
     'Cinza/ branco', 'Cinza', 'Cinza/ Preto',
@@ -142,6 +145,50 @@ export default function Athletes() {
         a.role?.toLowerCase().includes(search.toLowerCase())
     );
 
+    const exportToPDF = () => {
+        const doc = new jsPDF();
+        doc.text('Lista de Atletas - ZR Team', 14, 15);
+
+        const tableColumn = ["Nome", "Escola", "Idade", "Role", "Faixa", "Graus", "Aulas"];
+        const tableRows = filtered.map(a => [
+            a.full_name,
+            a.school?.name || 'Sem Escola',
+            calculateAge(a.date_of_birth),
+            a.role,
+            a.belt,
+            a.degrees.toString(),
+            a.attended_classes.toString()
+        ]);
+
+        autoTable(doc, {
+            head: [tableColumn],
+            body: tableRows,
+            startY: 20,
+        });
+
+        doc.save('ZRTeam_Atletas.pdf');
+    };
+
+    const exportToExcel = () => {
+        const excelData = filtered.map(a => ({
+            'Nome': a.full_name,
+            'Escola': a.school?.name || 'Sem Escola',
+            'Idade': calculateAge(a.date_of_birth),
+            'Role': a.role,
+            'Faixa': a.belt,
+            'Graus': a.degrees,
+            'Total Aulas': a.attended_classes,
+            'Professor Associado': a.assigned_professor?.full_name || 'Nenhum',
+            'Email': a.email || 'N/A',
+            'Membro Desde': new Date(a.created_at).toLocaleDateString()
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Atletas");
+        XLSX.writeFile(workbook, "ZRTeam_Atletas.xlsx");
+    };
+
 
 
     const beltColors: Record<string, string> = {
@@ -172,6 +219,16 @@ export default function Athletes() {
                             <option value="all">Todas as Escolas</option>
                             {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
+                    )}
+                    {canManageAllSchool && (
+                        <div className="export-actions">
+                            <button onClick={exportToExcel} className="btn-export excel" title="Exportar para Excel">
+                                <Download size={16} /> Excel
+                            </button>
+                            <button onClick={exportToPDF} className="btn-export pdf" title="Exportar para PDF">
+                                <Download size={16} /> PDF
+                            </button>
+                        </div>
                     )}
                     <div className="search-box">
                         <Search size={16} style={{ color: 'var(--text-muted)' }} />
@@ -356,8 +413,22 @@ export default function Athletes() {
           gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;
         }
         .header-actions {
-          display: flex; gap: 1rem; flex-wrap: wrap;
+          display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;
         }
+        .export-actions {
+          display: flex; gap: 0.5rem;
+        }
+        .btn-export {
+          display: flex; align-items: center; gap: 0.4rem;
+          padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+          font-size: 0.8rem; font-weight: 600; cursor: pointer;
+          border: 1px solid transparent; transition: all 0.2s;
+          color: white;
+        }
+        .btn-export.excel { background: rgba(16,185,129,0.15); color: #10b981; border-color: rgba(16,185,129,0.3); }
+        .btn-export.excel:hover { background: rgba(16,185,129,0.25); }
+        .btn-export.pdf { background: rgba(239,68,68,0.15); color: #ef4444; border-color: rgba(239,68,68,0.3); }
+        .btn-export.pdf:hover { background: rgba(239,68,68,0.25); }
         .filter-select {
           background: var(--bg-card); border: 1px solid var(--border);
           border-radius: 0.5rem; padding: 0.5rem 1rem;

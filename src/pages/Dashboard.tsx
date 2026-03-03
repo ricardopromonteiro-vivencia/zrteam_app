@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { Activity, Calendar, Clock, ExternalLink } from 'lucide-react';
+import { Activity, Calendar, Clock, ExternalLink, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 const GRADUATION_RULES: Record<string, { totalForNextBelt: number, classesPerDegree: number, nextBelt: string }> = {
   'Cinza/ branco': { totalForNextBelt: 40, classesPerDegree: 8, nextBelt: 'Cinza' },
@@ -199,6 +202,79 @@ export default function Dashboard() {
     setLoading(false);
   }
 
+  const exportHistoryPDF = async () => {
+    setLoading(true);
+    const { data: history } = await supabase
+      .from('class_bookings')
+      .select(`
+        status,
+        created_at,
+        classes (title, date, start_time)
+      `)
+      .eq('user_id', profile.id)
+      .in('status', ['Presente', 'Falta'])
+      .order('created_at', { ascending: false });
+
+    if (!history || history.length === 0) {
+      alert('Não tens histórico de presenças para exportar.');
+      setLoading(false);
+      return;
+    }
+
+    const doc = new jsPDF();
+    doc.text(`Histórico de Presenças - ${profile.full_name}`, 14, 15);
+
+    const tableColumn = ["Data", "Aula", "Hora", "Status"];
+    const tableRows = history.map((h: any) => [
+      new Date(h.classes.date).toLocaleDateString('pt-PT'),
+      h.classes.title,
+      h.classes.start_time.substring(0, 5),
+      h.status
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 20,
+    });
+
+    doc.save(`ZRTeam_Historico_${profile.full_name.replace(/ /g, '_')}.pdf`);
+    setLoading(false);
+  };
+
+  const exportHistoryExcel = async () => {
+    setLoading(true);
+    const { data: history } = await supabase
+      .from('class_bookings')
+      .select(`
+        status,
+        created_at,
+        classes (title, date, start_time)
+      `)
+      .eq('user_id', profile.id)
+      .in('status', ['Presente', 'Falta'])
+      .order('created_at', { ascending: false });
+
+    if (!history || history.length === 0) {
+      alert('Não tens histórico de presenças para exportar.');
+      setLoading(false);
+      return;
+    }
+
+    const excelData = history.map((h: any) => ({
+      'Data': new Date(h.classes.date).toLocaleDateString('pt-PT'),
+      'Aula': h.classes.title,
+      'Hora': h.classes.start_time.substring(0, 5),
+      'Status': h.status
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Presenças");
+    XLSX.writeFile(workbook, `ZRTeam_Historico_${profile.full_name.replace(/ /g, '_')}.xlsx`);
+    setLoading(false);
+  };
+
   if (!profile) return null;
 
   // Faixa preta: sem próxima faixa
@@ -375,6 +451,15 @@ export default function Dashboard() {
           .today-class-title { font-weight: 600; font-size: 0.875rem; color: white; }
           .today-class-time { font-size: 0.7rem; color: var(--text-muted); }
           .today-class-pill { background: rgba(16,185,129,0.1); color: var(--primary); border: 1px solid rgba(16,185,129,0.25); padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
+
+          .export-buttons-mini { display: flex; gap: 0.5rem; }
+          .btn-export-mini { 
+            background: rgba(255,255,255,0.05); border: 1px solid var(--border); 
+            color: var(--text-muted); cursor: pointer; padding: 0.25rem; 
+            border-radius: 0.4rem; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+          }
+          .btn-export-mini:hover { background: rgba(16,185,129,0.1); color: var(--primary); border-color: var(--primary); }
         `}</style>
       </div>
     );
@@ -391,7 +476,17 @@ export default function Dashboard() {
         <div className="stat-card">
           <Activity className="stat-icon" />
           <div className="stat-content">
-            <h3>Total de Presenças</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+              <h3>Total de Presenças</h3>
+              <div className="export-buttons-mini">
+                <button onClick={exportHistoryExcel} className="btn-export-mini" title="Exportar Excel">
+                  <Download size={14} />
+                </button>
+                <button onClick={exportHistoryPDF} className="btn-export-mini" title="Exportar PDF">
+                  <Download size={14} />
+                </button>
+              </div>
+            </div>
             <p className="stat-value">{profile.attended_classes}</p>
           </div>
         </div>
