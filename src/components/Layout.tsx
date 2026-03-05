@@ -3,7 +3,7 @@ import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
   LogOut, Home, Calendar, Users, Activity, Settings,
-  ShieldCheck, Menu, X, Building2, HelpCircle, Download, CreditCard, Megaphone
+  ShieldCheck, Menu, X, Building2, HelpCircle, Download, CreditCard, Megaphone, UserCheck
 } from 'lucide-react';
 import logo from '../assets/logo.png';
 
@@ -12,6 +12,7 @@ export default function Layout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
+  const [pendingValidations, setPendingValidations] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -118,6 +119,30 @@ export default function Layout() {
     }
   }, [profile, location.pathname]);
 
+  // Verificar validações pendentes (para badge)
+  useEffect(() => {
+    if (!profile) return;
+    if (profile.role !== 'Admin' && profile.role !== 'Professor') return;
+    async function checkPendingValidations() {
+      const isHeadProfessor = profile?.school?.head_professor_id === profile?.id;
+      if (profile.role !== 'Admin' && !isHeadProfessor) return;
+
+      let query = supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('needs_validation', true)
+        .eq('role', 'Atleta');
+
+      if (profile.role === 'Professor' && profile.school_id) {
+        query = query.eq('school_id', profile.school_id);
+      }
+
+      const { count } = await query;
+      setPendingValidations(count || 0);
+    }
+    checkPendingValidations();
+  }, [profile, location.pathname]);
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate('/');
@@ -139,10 +164,48 @@ export default function Layout() {
       ...(profile?.role === 'Admin' ? [{ name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 }] : []),
       { name: 'Pagamentos', path: '/admin/pagamentos', icon: CreditCard },
       { name: 'Check-in', path: '/admin/checkin', icon: ShieldCheck },
+      { name: 'Validações', path: '/admin/validacoes', icon: UserCheck, badge: pendingValidations > 0 },
       { name: 'Definições', path: '/settings', icon: Settings },
     ];
 
   if (!profile) return <div className="loading-state">A carregar perfil...</div>;
+
+  // BLOQUEIO: Utilizador ainda aguarda validação pelo admin/professor
+  if (profile.needs_validation === true) {
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'var(--bg-dark)', padding: '1.5rem'
+      }}>
+        <div style={{
+          background: 'var(--bg-card)', border: '1px solid rgba(245,158,11,0.3)',
+          borderRadius: '1.5rem', padding: '3rem 2rem', maxWidth: '420px', width: '100%',
+          textAlign: 'center', boxShadow: '0 25px 60px rgba(0,0,0,0.5)'
+        }}>
+          <img src={logo} alt="ZR Team" style={{ width: '90px', height: '90px', borderRadius: '50%', border: '2px solid #f59e0b', padding: '4px', background: 'white', marginBottom: '1.5rem' }} />
+          <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>⏳</div>
+          <h2 style={{ color: 'white', margin: '0 0 0.75rem', fontSize: '1.25rem' }}>A aguardar validação</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', lineHeight: 1.6, marginBottom: '2rem' }}>
+            O teu registo está pendente de aprovação pelo professor responsável ou administrador.
+            Receberás acesso assim que a tua conta for validada.
+          </p>
+          <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '0.75rem', padding: '0.875rem', marginBottom: '2rem', fontSize: '0.8rem', color: '#f59e0b' }}>
+            📧 Se tiveres dúvidas, contacta o teu professor ou via <strong>zrteamcheck@gmail.com</strong>
+          </div>
+          <button
+            onClick={handleSignOut}
+            style={{
+              background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)',
+              padding: '0.6rem 1.5rem', borderRadius: '0.5rem', cursor: 'pointer',
+              fontSize: '0.875rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem'
+            }}
+          >
+            <LogOut size={16} /> Sair da conta
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="layout-container">
@@ -185,16 +248,6 @@ export default function Layout() {
               )}
             </Link>
           ))}
-          {(profile?.role === 'Admin' || profile?.role === 'Professor') && (
-            <Link
-              to="/admin/pagamentos"
-              className={`nav-link ${location.pathname === '/admin/pagamentos' ? 'active' : ''}`}
-              onClick={() => setIsSidebarOpen(false)}
-            >
-              <CreditCard size={20} />
-              Pagamentos
-            </Link>
-          )}
           <Link to="/termos" className="nav-link terms-nav-link" onClick={() => setIsSidebarOpen(false)}>
             <ShieldCheck size={20} /> Termos e Condições
           </Link>

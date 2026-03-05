@@ -23,7 +23,10 @@ export default function Login() {
     const [schoolId, setSchoolId] = useState('');
     const [dateOfBirth, setDateOfBirth] = useState('');
     const [belt, setBelt] = useState('Branco');
+    const [degrees, setDegrees] = useState('0');
+    const [professorId, setProfessorId] = useState('');
     const [schools, setSchools] = useState<any[]>([]);
+    const [professors, setProfessors] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
@@ -34,7 +37,16 @@ export default function Login() {
             const { data } = await supabase.from('schools').select('id, name').order('name');
             if (data) setSchools(data);
         }
+        async function loadProfessors() {
+            const { data } = await supabase
+                .from('profiles')
+                .select('id, full_name, school_id')
+                .in('role', ['Professor', 'Admin'])
+                .order('full_name');
+            if (data) setProfessors(data);
+        }
         loadSchools();
+        loadProfessors();
     }, []);
 
     function switchMode(m: Mode) {
@@ -68,7 +80,10 @@ export default function Login() {
                             role: 'Atleta',
                             school_id: schoolId,
                             date_of_birth: dateOfBirth,
-                            belt: belt
+                            belt: belt,
+                            degrees: parseInt(degrees),
+                            assigned_professor_id: professorId || null,
+                            needs_validation: true
                         }
                     }
                 });
@@ -258,6 +273,41 @@ export default function Login() {
                                 </select>
                             </div>
 
+                            <div className="form-row">
+                                <div className="form-group half">
+                                    <label className="form-label" htmlFor="degrees">Grau (0–4)</label>
+                                    <select
+                                        id="degrees"
+                                        className="form-input"
+                                        value={degrees}
+                                        onChange={(e) => setDegrees(e.target.value)}
+                                        required
+                                    >
+                                        {[0, 1, 2, 3, 4].map(d => (
+                                            <option key={d} value={d}>{d}° Grau</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="form-group half">
+                                    <label className="form-label" htmlFor="professor">Professor</label>
+                                    <select
+                                        id="professor"
+                                        className="form-input"
+                                        value={professorId}
+                                        onChange={(e) => setProfessorId(e.target.value)}
+                                        required
+                                    >
+                                        <option value="">Seleciona...</option>
+                                        {professors
+                                            .filter(p => !schoolId || p.school_id === schoolId)
+                                            .map(p => (
+                                                <option key={p.id} value={p.id}>{p.full_name}</option>
+                                            ))
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+
                             <div className="form-group checkbox-group">
                                 <input
                                     id="terms"
@@ -286,16 +336,19 @@ export default function Login() {
 
                 <div className="auth-links">
                     {mode === 'login' && (
-                        <>
-                            <span style={{ color: 'var(--text-muted)' }}>Não tens conta?</span>{' '}
-                            <button type="button" className="link-btn" onClick={() => switchMode('register')}>
-                                Regista-te
-                            </button>
-                            <span style={{ color: 'var(--border)', margin: '0 0.5rem' }}>|</span>
-                            <button type="button" className="link-btn" onClick={() => switchMode('recover')}>
-                                Esqueci a palavra-passe
-                            </button>
-                        </>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                            <div>
+                                <span style={{ color: 'var(--text-muted)' }}>Não tens conta?</span>{' '}
+                                <button type="button" className="link-btn" onClick={() => switchMode('register')}>
+                                    Regista-te
+                                </button>
+                            </div>
+                            <div>
+                                <button type="button" className="link-btn" onClick={() => switchMode('recover')}>
+                                    Esqueci a palavra-passe
+                                </button>
+                            </div>
+                        </div>
                     )}
                     {(mode === 'register' || mode === 'recover') && (
                         <>

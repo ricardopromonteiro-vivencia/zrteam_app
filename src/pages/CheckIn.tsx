@@ -44,23 +44,26 @@ export default function CheckIn() {
             }
         });
 
-        // Atletas filtrados por professor (se Profó só vê os seus próprios; Admin vê todos da escola)
-        if (profile?.school_id) {
-            let athleteQuery = supabase
-                .from('profiles')
-                .select('id, full_name, belt, degrees')
-                .eq('school_id', profile.school_id)
-                .eq('role', 'Atleta')
-                .order('full_name');
+        // Atletas: Admin vê todos, Professor vê os da sua escola
+        let athleteQuery = supabase
+            .from('profiles')
+            .select('id, full_name, belt, degrees')
+            .eq('role', 'Atleta')
+            .eq('is_archived', false)
+            .order('full_name');
 
+        if (isAdmin) {
+            // Admin vê todos, sem filtro de escola
+        } else if (profile?.school_id) {
+            athleteQuery = athleteQuery.eq('school_id', profile.school_id);
             if (isProfessor && !isHeadProfessor) {
                 athleteQuery = athleteQuery.eq('assigned_professor_id', profile.id);
             }
-
-            athleteQuery.then(({ data }) => {
-                if (data) setAllSchoolAthletes(data);
-            });
         }
+
+        athleteQuery.then(({ data }) => {
+            if (data) setAllSchoolAthletes(data);
+        });
     }, [profile]);
 
     // Buscar inscritos quando uma aula é selecionada
@@ -186,7 +189,7 @@ export default function CheckIn() {
         setLoading(false);
     };
 
-    const filteredAthletes = searchQuery.trim().length > 1
+    const filteredAthletes = searchQuery.trim().length >= 1
         ? allSchoolAthletes.filter((a: any) =>
             a.full_name.toLowerCase().includes(searchQuery.toLowerCase()) &&
             !bookings.some((b: any) => b.user_id?.id === a.id)

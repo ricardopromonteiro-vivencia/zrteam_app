@@ -133,14 +133,15 @@ export default function Dashboard() {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(now.getDate() - 7);
 
+      // Presenças dos últimos 7 dias
       let attendanceQuery = supabase
         .from('class_bookings')
-        .select('created_at')
+        .select('created_at, profiles!inner(school_id)')
         .eq('status', 'Presente')
         .gte('created_at', sevenDaysAgo.toISOString());
 
-      if (profile.role === 'Professor') {
-        attendanceQuery = attendanceQuery.eq('profiles!inner(school_id)', profile.school_id);
+      if (profile.role === 'Professor' && profile.school_id) {
+        attendanceQuery = (attendanceQuery as any).eq('profiles.school_id', profile.school_id);
       }
 
       const { data: attendanceData } = await attendanceQuery;
@@ -155,18 +156,24 @@ export default function Dashboard() {
       }
       const { data: todayClassesData } = await todayQuery.order('start_time', { ascending: true });
 
-      // Total de presenças hoje
-      const { count: presentToday } = await supabase
+      // Total de presenças hoje (com range completo do dia)
+      const todayEnd = today + 'T23:59:59Z';
+      let presentQuery = supabase
         .from('class_bookings')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'Presente')
-        .gte('created_at', today);
+        .gte('created_at', today + 'T00:00:00Z')
+        .lte('created_at', todayEnd);
+
+      const { count: presentToday } = await presentQuery;
 
       // Total de atletas
       let athleteQuery = supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .eq('role', 'Atleta');
+        .eq('role', 'Atleta')
+        .eq('is_archived', false);
+
       if (profile.role === 'Professor' && profile.school_id) {
         athleteQuery = athleteQuery.eq('school_id', profile.school_id);
       }

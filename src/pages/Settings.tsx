@@ -1,13 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Lock, User, ShieldCheck, Trash2, AlertTriangle } from 'lucide-react';
+import { Lock, User, ShieldCheck, Trash2, AlertTriangle, Edit2, Save, X } from 'lucide-react';
+
+const BELTS = [
+    'Cinza/ branco', 'Cinza', 'Cinza/ Preto',
+    'Amarelo / Branco', 'Amarelo', 'Amarelo/ preto',
+    'Laranja/ Branco', 'Laranja', 'Laranja/ preto',
+    'Verde / Branco', 'Verde', 'Verde / Preto',
+    'Branco', 'Azul', 'Roxo', 'Marrom', 'Preto'
+];
 
 export default function Settings() {
-    const { profile } = useOutletContext<{ profile: any }>();
+    const { profile, setProfile } = useOutletContext<{ profile: any, setProfile: any }>();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const [editingProfile, setEditingProfile] = useState(false);
+    const [editForm, setEditForm] = useState<any>({});
+    const [schools, setSchools] = useState<any[]>([]);
+    const [professors, setProfessors] = useState<any[]>([]);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
 
@@ -36,8 +48,57 @@ export default function Settings() {
                 setPaymentStatus('Pendente');
             }
         }
+        async function loadOptions() {
+            const { data: schoolsData } = await supabase.from('schools').select('id, name').order('name');
+            if (schoolsData) setSchools(schoolsData);
+            const { data: profsData } = await supabase
+                .from('profiles')
+                .select('id, full_name, school_id')
+                .in('role', ['Professor', 'Admin'])
+                .order('full_name');
+            if (profsData) setProfessors(profsData);
+        }
         fetchPaymentStatus();
+        loadOptions();
     }, [profile?.id]);
+
+    const startEditProfile = () => {
+        setEditForm({
+            full_name: profile.full_name || '',
+            date_of_birth: profile.date_of_birth || '',
+            belt: profile.belt || 'Branco',
+            degrees: profile.degrees ?? 0,
+            school_id: profile.school_id || '',
+            assigned_professor_id: profile.assigned_professor_id || '',
+        });
+        setEditingProfile(true);
+    };
+
+    const handleSaveProfile = async () => {
+        setLoading(true);
+        const { error } = await supabase
+            .from('profiles')
+            .update({
+                full_name: editForm.full_name,
+                date_of_birth: editForm.date_of_birth || null,
+                belt: editForm.belt,
+                degrees: parseInt(editForm.degrees),
+                school_id: editForm.school_id || null,
+                assigned_professor_id: editForm.assigned_professor_id || null,
+            })
+            .eq('id', profile.id);
+
+        if (!error) {
+            setMessage({ type: 'success', text: 'Perfil atualizado com sucesso!' });
+            setEditingProfile(false);
+            // Forçar reload do perfil no contexto (via reload simples)
+            window.location.reload();
+        } else {
+            setMessage({ type: 'error', text: 'Erro ao guardar: ' + error.message });
+        }
+        setLoading(false);
+        setTimeout(() => setMessage(null), 4000);
+    };
 
     const handleUpdatePassword = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -95,41 +156,102 @@ export default function Settings() {
                     <div className="card-header">
                         <User className="text-primary" />
                         <h2>O Teu Perfil</h2>
+                        {!editingProfile && (
+                            <button onClick={startEditProfile} style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.5rem', padding: '0.3rem 0.6rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>
+                                <Edit2 size={14} /> Editar
+                            </button>
+                        )}
                     </div>
-                    <div className="profile-info">
-                        <div className="info-item">
-                            <label>Nome Completo</label>
-                            <p>{profile.full_name}</p>
+
+                    {message && (
+                        <div className={`message-box message-${message.type}`}>
+                            <ShieldCheck size={18} /> {message.text}
                         </div>
-                        <div className="info-item">
-                            <label>Função</label>
-                            <p><span className="role-badge">{profile.role}</span></p>
+                    )}
+
+                    {editingProfile ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div className="form-group">
+                                <label className="form-label">Nome Completo</label>
+                                <input className="form-input" value={editForm.full_name} onChange={e => setEditForm((f: any) => ({ ...f, full_name: e.target.value }))} />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Data de Nascimento</label>
+                                <input type="date" className="form-input" value={editForm.date_of_birth} onChange={e => setEditForm((f: any) => ({ ...f, date_of_birth: e.target.value }))} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                <div className="form-group">
+                                    <label className="form-label">Faixa</label>
+                                    <select className="form-input" value={editForm.belt} onChange={e => setEditForm((f: any) => ({ ...f, belt: e.target.value }))}>
+                                        {BELTS.map(b => <option key={b} value={b}>{b}</option>)}
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Grau</label>
+                                    <select className="form-input" value={editForm.degrees} onChange={e => setEditForm((f: any) => ({ ...f, degrees: e.target.value }))}>
+                                        {[0, 1, 2, 3, 4].map(d => <option key={d} value={d}>{d}°</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Escola</label>
+                                <select className="form-input" value={editForm.school_id} onChange={e => setEditForm((f: any) => ({ ...f, school_id: e.target.value }))}>
+                                    <option value="">Sem Escola</option>
+                                    {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Professor</label>
+                                <select className="form-input" value={editForm.assigned_professor_id} onChange={e => setEditForm((f: any) => ({ ...f, assigned_professor_id: e.target.value }))}>
+                                    <option value="">Nenhum</option>
+                                    {professors.filter(p => !editForm.school_id || p.school_id === editForm.school_id).map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                                </select>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                                <button onClick={() => setEditingProfile(false)} style={{ flex: 1, padding: '0.6rem', borderRadius: '0.5rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                                    <X size={16} /> Cancelar
+                                </button>
+                                <button onClick={handleSaveProfile} disabled={loading} style={{ flex: 1, padding: '0.6rem', borderRadius: '0.5rem', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontWeight: 600 }}>
+                                    <Save size={16} /> {loading ? 'A guardar...' : 'Guardar'}
+                                </button>
+                            </div>
                         </div>
-                        <div className="info-item">
-                            <label>Escola</label>
-                            <p>{profile.school?.name || 'Não associada'}</p>
+                    ) : (
+                        <div className="profile-info">
+                            <div className="info-item">
+                                <label>Nome Completo</label>
+                                <p>{profile.full_name}</p>
+                            </div>
+                            <div className="info-item">
+                                <label>Função</label>
+                                <p><span className="role-badge">{profile.role}</span></p>
+                            </div>
+                            <div className="info-item">
+                                <label>Escola</label>
+                                <p>{profile.school?.name || 'Não associada'}</p>
+                            </div>
+                            <div className="info-item">
+                                <label>Data de Nascimento</label>
+                                <p>{profile.date_of_birth ? new Date(profile.date_of_birth).toLocaleDateString('pt-PT') : '—'}</p>
+                            </div>
+                            <div className="info-item">
+                                <label>Faixa / Graduação</label>
+                                <p>{profile.belt} - {profile.degrees} Graus</p>
+                            </div>
+                            <div className="info-item">
+                                <label>Professor Responsável</label>
+                                <p>{profile.assigned_professor?.full_name || <span className="text-muted">Nenhum atribuído</span>}</p>
+                            </div>
+                            <div className="info-item">
+                                <label>Mensalidade ({currentMonth} {currentYear})</label>
+                                <p>
+                                    <span className={`payment-badge ${paymentStatus === 'Pago' ? 'paid' : 'pending'}`}>
+                                        {paymentStatus || 'A carregar...'}
+                                    </span>
+                                </p>
+                            </div>
                         </div>
-                        <div className="info-item">
-                            <label>Data de Nascimento</label>
-                            <p>{profile.date_of_birth ? new Date(profile.date_of_birth).toLocaleDateString('pt-PT') : '—'}</p>
-                        </div>
-                        <div className="info-item">
-                            <label>Faixa / Graduação</label>
-                            <p>{profile.belt} - {profile.degrees} Graus</p>
-                        </div>
-                        <div className="info-item">
-                            <label>Professor Responsável</label>
-                            <p>{profile.assigned_professor?.full_name || <span className="text-muted">Nenhum atribuído</span>}</p>
-                        </div>
-                        <div className="info-item">
-                            <label>Mensalidade ({currentMonth} {currentYear})</label>
-                            <p>
-                                <span className={`payment-badge ${paymentStatus === 'Pago' ? 'paid' : 'pending'}`}>
-                                    {paymentStatus || 'A carregar...'}
-                                </span>
-                            </p>
-                        </div>
-                    </div>
+                    )}
                 </div>
 
                 <div className="settings-card">

@@ -17,6 +17,7 @@ import Schools from './pages/Schools';
 import Payments from './pages/Payments';
 import Announcements from './pages/Announcements';
 import ResetPassword from './pages/ResetPassword';
+import Validations from './pages/Validations';
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -64,6 +65,8 @@ function App() {
           <Route path="/checkin" element={<CheckIn />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/ajuda" element={<Help />} />
+          <Route path="/admin/validacoes" element={<Validations />} />
+          <Route path="/validacoes" element={<Validations />} />
         </Route>
       </Routes>
     </Router>

@@ -47,6 +47,7 @@ export default function Classes() {
     const [selectedProfessorId, setSelectedProfessorId] = useState('');
     const [schools, setSchools] = useState<any[]>([]);
     const [professors, setProfessors] = useState<any[]>([]);
+    const [filterSchool, setFilterSchool] = useState<string>('all');
 
     const isAdmin = profile?.role === 'Admin' || profile?.role === 'Professor';
 
@@ -276,6 +277,34 @@ export default function Classes() {
             </div>
 
             <div className="day-selector">
+                {/* Filtro de Escola — visível apenas para Admin */}
+                {profile?.role === 'Admin' && schools.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                        <select
+                            value={filterSchool}
+                            onChange={e => setFilterSchool(e.target.value)}
+                            style={{
+                                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                borderRadius: '0.5rem', padding: '0.4rem 0.75rem',
+                                color: filterSchool !== 'all' ? 'var(--primary)' : 'var(--text-muted)',
+                                fontSize: '0.8rem', cursor: 'pointer', outline: 'none'
+                            }}
+                        >
+                            <option value="all">🏫 Todas as Escolas</option>
+                            {schools.map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                        </select>
+                        {filterSchool !== 'all' && (
+                            <button
+                                onClick={() => setFilterSchool('all')}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem' }}
+                            >
+                                ✕ Limpar filtro
+                            </button>
+                        )}
+                    </div>
+                )}
                 {DAYS_OF_WEEK.map(day => (
                     <button
                         key={day.id}
@@ -294,7 +323,10 @@ export default function Classes() {
                 <div className="classes-grid animate-fade-in">
                     {(() => {
                         const targetDate = getTargetDate(selectedDay);
-                        const filteredClasses = classes.filter(cls => cls.date === targetDate);
+                        const filteredClasses = classes.filter(cls =>
+                            cls.date === targetDate &&
+                            (filterSchool === 'all' || cls.school_id === filterSchool)
+                        );
 
                         if (filteredClasses.length === 0) {
                             return (
