@@ -12,7 +12,7 @@ const BELTS = [
 ];
 
 export default function Settings() {
-    const { profile, setProfile } = useOutletContext<{ profile: any, setProfile: any }>();
+    const { profile } = useOutletContext<{ profile: any }>();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
