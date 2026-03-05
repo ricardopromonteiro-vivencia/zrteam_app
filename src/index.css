@@ -1,5 +1,6 @@
 :root {
-  --primary: #10b981; /* Emerald/Green */
+  --primary: #10b981;
+  /* Emerald/Green */
   --primary-dark: #059669;
   --bg-dark: #121212;
   --bg-card: #1e1e1e;
@@ -93,8 +94,15 @@ button {
 
 /* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-fade-in {
