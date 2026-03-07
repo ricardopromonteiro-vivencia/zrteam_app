@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 // Chave pública hardcoded para evitar problemas de cache do Vite/Netlify
-const VAPID_PUBLIC_KEY = 'BG3O58-eBUmO8wdbraYOq1cJFlCz0xwfmtmnTSTtqpLgysssBGPm5vvPU0fzHVVuqmiG1ijGJP2uX6KrzIWOahb8';
+// Usando formato RAW (87 caracteres sem padding) base64url para máxima compatibilidade PushManager
+const VAPID_PUBLIC_KEY = 'BPX9G40qar5CcomgUsM8qNqowv0DZXEyTvgDu8VhD6ncEyKZDFaV5MuUvbAf7L5a9UrgyCqpHQ_t07YyFtcA46c';
 
 function urlBase64ToUint8Array(base64String: string) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
