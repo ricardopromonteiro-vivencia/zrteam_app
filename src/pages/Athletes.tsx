@@ -75,7 +75,7 @@ export default function Athletes() {
         setLoading(true);
         let query = supabase
             .from('profiles')
-            .select('*, school:schools!school_id(name), assigned_professor:profiles!assigned_professor_id(full_name)')
+            .select('*, school:schools!school_id(name)')
             .order('full_name', { ascending: sortOrder === 'asc' });
 
         if (isProfessor(myProfile?.role)) {
@@ -421,7 +421,9 @@ export default function Athletes() {
                                                 </span>
                                             </td>
                                             <td>
-                                                {athlete.assigned_professor?.full_name || <span className="text-muted">—</span>}
+                                                {athlete.assigned_professor_id
+                                                    ? (professors.find(p => p.id === athlete.assigned_professor_id)?.full_name || <span className="text-muted">—</span>)
+                                                    : <span className="text-muted">—</span>}
                                             </td>
                                             <td className="text-center">{athlete.degrees}°</td>
                                             <td className="text-center">{athlete.attended_classes}</td>
