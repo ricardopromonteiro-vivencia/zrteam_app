@@ -44,6 +44,15 @@ export function usePushNotifications(userId: string | undefined) {
 
         try {
             const reg = await navigator.serviceWorker.ready;
+
+            // FORÇAR LIMPEZA DA SUBSCRIÇÃO ANTIGA
+            // O erro 'InvalidAccessError' acontece quase sempre quando já
+            // existe uma subscrição com uma VAPID key diferente e tentamos re-subscrever
+            const existingSub = await reg.pushManager.getSubscription();
+            if (existingSub) {
+                await existingSub.unsubscribe();
+            }
+
             const sub = await reg.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
