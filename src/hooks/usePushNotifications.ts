@@ -5,10 +5,18 @@ import { supabase } from '../lib/supabase';
 const VAPID_PUBLIC_KEY = 'BG3O58-eBUmO8wdbraYOq1cJFlCz0xwfmtmnTSTtqpLgysssBGPm5vvPU0fzHVVuqmiG1ijGJP2uX6KrzIWOahb8';
 
 function urlBase64ToUint8Array(base64String: string) {
-    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const rawData = atob(base64);
-    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/\-/g, '+')
+        .replace(/_/g, '/');
+
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
 }
 
 export function usePushNotifications(userId: string | undefined) {
