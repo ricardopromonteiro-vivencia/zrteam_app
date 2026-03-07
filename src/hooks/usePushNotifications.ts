@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string;
+// Chave pública hardcoded para evitar problemas de cache do Vite/Netlify
+const VAPID_PUBLIC_KEY = 'BG3O58-eBUmO8wdbraYOq1cJFlCz0xwfmtmnTSTtqpLgysssBGPm5vvPU0fzHVVuqmiG1ijGJP2uX6KrzIWOahb8';
 
 function urlBase64ToUint8Array(base64String: string) {
     const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
