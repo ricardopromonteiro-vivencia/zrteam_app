@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { Activity, Calendar, Clock, ExternalLink, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { isProfessor } from '../lib/roles';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -140,7 +141,7 @@ export default function Dashboard() {
         .eq('status', 'Presente')
         .gte('created_at', sevenDaysAgo.toISOString());
 
-      if (profile.role === 'Professor' && profile.school_id) {
+      if (isProfessor(profile.role) && profile.school_id) {
         attendanceQuery = (attendanceQuery as any).eq('profiles.school_id', profile.school_id);
       }
 
@@ -316,7 +317,7 @@ export default function Dashboard() {
     return { google, outlook };
   };
 
-  if (profile.role === 'Admin' || profile.role === 'Professor') {
+  if (profile.role === 'Admin' || isProfessor(profile.role)) {
     const maxAttendance = Math.max(...stats.weeklyAttendance.map(a => a.count), 1);
     const greeting = profile.role === 'Admin' ? 'Administrador' : 'Professor';
     const timeNow = new Date();

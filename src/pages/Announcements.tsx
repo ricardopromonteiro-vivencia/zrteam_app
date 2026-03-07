@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Megaphone, Plus, Trash2, Calendar, User, Building2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { isProfessor } from '../lib/roles';
 
 export default function Announcements() {
     const { profile } = useOutletContext<{ profile: any }>();
@@ -16,7 +17,7 @@ export default function Announcements() {
     const [schoolId, setSchoolId] = useState<string | null>(profile?.school_id || null);
     const [schools, setSchools] = useState<any[]>([]);
 
-    const isAdmin = profile?.role === 'Admin' || profile?.role === 'Professor';
+    const isAdmin = profile?.role === 'Admin' || isProfessor(profile?.role);
 
     useEffect(() => {
         fetchAnnouncements();

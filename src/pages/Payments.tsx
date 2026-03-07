@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { isProfessor as checkIsProfessor } from '../lib/roles';
 import { useOutletContext } from 'react-router-dom';
 import { CreditCard, CheckCircle, Clock, Search } from 'lucide-react';
 
@@ -19,7 +20,7 @@ export default function Payments() {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
     const isAdmin = profile?.role === 'Admin';
-    const isProfessor = profile?.role === 'Professor';
+    const isProfessor = checkIsProfessor(profile?.role);
     const isHeadProfessor = profile?.school?.head_professor_id === profile?.id;
 
     useEffect(() => {
@@ -38,7 +39,7 @@ export default function Payments() {
             .eq('role', 'Atleta')
             .order('full_name');
 
-        if (profile?.role === 'Professor') {
+        if (checkIsProfessor(profile?.role)) {
             if (isHeadProfessor) {
                 athletesQuery = athletesQuery.eq('school_id', profile.school_id);
             } else {

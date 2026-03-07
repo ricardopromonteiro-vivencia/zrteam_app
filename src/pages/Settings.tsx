@@ -195,7 +195,7 @@ export default function Settings() {
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Escola</label>
-                                <select className="form-input" value={editForm.school_id} onChange={e => setEditForm((f: any) => ({ ...f, school_id: e.target.value }))}>
+                                <select className="form-input" value={editForm.school_id} onChange={e => setEditForm((f: any) => ({ ...f, school_id: e.target.value, assigned_professor_id: '' }))}>
                                     <option value="">Sem Escola</option>
                                     {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>

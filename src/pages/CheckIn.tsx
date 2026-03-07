@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { isProfessor as checkIsProfessor } from '../lib/roles';
 import { CheckCircle, XCircle, Clock, AlertTriangle, Users, Plus } from 'lucide-react';
 
 export default function CheckIn() {
@@ -14,7 +15,7 @@ export default function CheckIn() {
     const [pendingAthleteConfirm, setPendingAthleteConfirm] = useState<any>(null);
 
     const isAdmin = profile?.role === 'Admin';
-    const isProfessor = profile?.role === 'Professor';
+    const isProfessor = checkIsProfessor(profile?.role);
     const isHeadProfessor = profile?.school?.head_professor_id === profile?.id;
 
     // Buscar aulas e atletas da própria escola
@@ -28,9 +29,9 @@ export default function CheckIn() {
             .select('*')
             .eq('date', today);
 
-        if (profile?.role === 'Professor' && profile?.school_id) {
+        if (checkIsProfessor(profile?.role) && profile?.school_id) {
             classesQuery = classesQuery.or(`school_id.eq.${profile.school_id},school_id.is.null`);
-        } else if (profile?.role === 'Professor') {
+        } else if (checkIsProfessor(profile?.role)) {
             classesQuery = classesQuery.is('school_id', null);
         }
         // Se for Admin, não aplicamos filtro de escola (vê todas as aulas de hoje)

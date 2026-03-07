@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { isProfessor } from '../lib/roles';
 import { useOutletContext } from 'react-router-dom';
 import { Edit2, Save, X, Search, Users, Download, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -14,7 +15,7 @@ const BELTS = [
     'Branco', 'Azul', 'Roxo', 'Marrom', 'Preto'
 ];
 
-const ROLES = ['Atleta', 'Professor', 'Admin'];
+const ROLES = ['Atleta', 'Professor', 'Professor Responsável', 'Admin'];
 
 interface Profile {
     id: string;
@@ -44,7 +45,7 @@ export default function Athletes() {
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
     const isAdmin = myProfile?.role === 'Admin';
-    const isHeadProfessor = myProfile?.school?.head_professor_id === myProfile?.id;
+    const isHeadProfessor = myProfile?.role === 'Professor Responsável' || myProfile?.school?.head_professor_id === myProfile?.id;
     const canManageAllSchool = isAdmin || isHeadProfessor;
 
     const [schools, setSchools] = useState<any[]>([]);
@@ -77,7 +78,7 @@ export default function Athletes() {
             .select('*, school:schools!school_id(name), assigned_professor:profiles!assigned_professor_id(full_name)')
             .order('full_name', { ascending: sortOrder === 'asc' });
 
-        if (myProfile?.role === 'Professor') {
+        if (isProfessor(myProfile?.role)) {
             if (isHeadProfessor) {
                 query = query.eq('school_id', myProfile.school_id);
             } else {
@@ -330,7 +331,7 @@ export default function Athletes() {
                                                 <select
                                                     className="table-select"
                                                     value={editForm.school_id || ''}
-                                                    onChange={e => setEditForm(f => ({ ...f, school_id: e.target.value }))}
+                                                    onChange={e => setEditForm(f => ({ ...f, school_id: e.target.value, assigned_professor_id: '' }))}
                                                 >
                                                     <option value="">Sem Escola</option>
                                                     {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -425,7 +426,7 @@ export default function Athletes() {
                                             <td className="text-center">{athlete.degrees}°</td>
                                             <td className="text-center">{athlete.attended_classes}</td>
                                             <td className="text-muted">{new Date(athlete.created_at).toLocaleDateString('pt-PT')}</td>
-                                            {(isAdmin || myProfile?.role === 'Professor') && (
+                                            {(isAdmin || isProfessor(myProfile?.role)) && (
                                                 <td>
                                                     <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                                                         <button

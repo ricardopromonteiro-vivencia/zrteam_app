@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Plus, Users, Calendar, Clock, Trash2, CheckCircle, Edit2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { isProfessor } from '../lib/roles';
 
 export default function Classes() {
     const { profile } = useOutletContext<{ profile: any }>();
@@ -49,7 +50,7 @@ export default function Classes() {
     const [professors, setProfessors] = useState<any[]>([]);
     const [filterSchool, setFilterSchool] = useState<string>('all');
 
-    const isAdmin = profile?.role === 'Admin' || profile?.role === 'Professor';
+    const isAdmin = profile?.role === 'Admin' || isProfessor(profile?.role);
 
     useEffect(() => {
         fetchData();

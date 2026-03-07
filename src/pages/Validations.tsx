@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { isProfessor as checkIsProfessor } from '../lib/roles';
 import { CheckCircle, XCircle, Clock, AlertTriangle, UserCheck } from 'lucide-react';
 
 export default function Validations() {
@@ -12,7 +13,7 @@ export default function Validations() {
     const [schools, setSchools] = useState<any[]>([]);
 
     const isAdmin = profile?.role === 'Admin';
-    const isProfessor = profile?.role === 'Professor';
+    const isProfessor = checkIsProfessor(profile?.role);
     const isHeadProfessor = profile?.school?.head_professor_id === profile?.id;
     const canValidate = isAdmin || (isProfessor && isHeadProfessor);
 

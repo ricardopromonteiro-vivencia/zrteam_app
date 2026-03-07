@@ -3,9 +3,12 @@ import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
   LogOut, Home, Calendar, Users, Activity, Settings,
-  ShieldCheck, Menu, X, Building2, HelpCircle, Download, CreditCard, Megaphone, UserCheck
+  ShieldCheck, Menu, X, Building2, HelpCircle, Download, CreditCard, Megaphone, UserCheck,
+  Bell, BellOff
 } from 'lucide-react';
 import logo from '../assets/logo.png';
+import { usePushNotifications } from '../hooks/usePushNotifications';
+import { isProfessor } from '../lib/roles';
 
 export default function Layout() {
   const [profile, setProfile] = useState<any>(null);
@@ -13,6 +16,7 @@ export default function Layout() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
   const [pendingValidations, setPendingValidations] = useState(0);
+  const { isSupported, isSubscribed, subscribe, unsubscribe } = usePushNotifications(profile?.id);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -133,7 +137,7 @@ export default function Layout() {
         .eq('needs_validation', true)
         .eq('role', 'Atleta');
 
-      if (profile.role === 'Professor' && profile.school_id) {
+      if (isProfessor(profile.role) && profile.school_id) {
         query = query.eq('school_id', profile.school_id);
       }
 
@@ -158,7 +162,7 @@ export default function Layout() {
     : [
       { name: 'Dashboard', path: '/dashboard', icon: Activity },
       { name: 'Gestão de Aulas', path: '/admin/aulas', icon: Calendar },
-      ...(profile?.role === 'Professor' ? [{ name: 'Aulas', path: '/aulas', icon: Calendar }] : []),
+      ...(isProfessor(profile?.role) ? [{ name: 'Aulas', path: '/aulas', icon: Calendar }] : []),
       { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
       { name: 'Atletas', path: '/admin/atletas', icon: Users },
       ...(profile?.role === 'Admin' ? [{ name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 }] : []),
@@ -257,6 +261,18 @@ export default function Layout() {
           {deferredPrompt && (
             <button onClick={handleInstallClick} className="nav-link install-nav-btn">
               <Download size={20} /> Instalar App
+            </button>
+          )}
+          {/* Botão de Notificações Push */}
+          {isSupported && (
+            <button
+              onClick={isSubscribed ? unsubscribe : subscribe}
+              className="nav-link install-nav-btn"
+              title={isSubscribed ? 'Desativar notificações' : 'Ativar notificações push'}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}
+            >
+              {isSubscribed ? <BellOff size={20} /> : <Bell size={20} />}
+              {isSubscribed ? 'Notificações ativas' : 'Ativar notificações'}
             </button>
           )}
         </div>

@@ -236,7 +236,10 @@ export default function Login() {
                                         id="school"
                                         className="form-input"
                                         value={schoolId}
-                                        onChange={(e) => setSchoolId(e.target.value)}
+                                        onChange={(e) => {
+                                            setSchoolId(e.target.value);
+                                            setProfessorId(''); // Reset professor when school changes
+                                        }}
                                         required
                                     >
                                         <option value="">Seleciona...</option>
@@ -302,8 +305,7 @@ export default function Login() {
                                             .filter(p => !schoolId || p.school_id === schoolId)
                                             .map(p => (
                                                 <option key={p.id} value={p.id}>{p.full_name}</option>
-                                            ))
-                                        }
+                                            ))}
                                     </select>
                                 </div>
                             </div>

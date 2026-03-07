@@ -36,3 +36,52 @@ self.addEventListener('fetch', (event) => {
         fetch(event.request).catch(() => caches.match(event.request))
     );
 });
+
+// ============================================================
+// PUSH NOTIFICATIONS
+// ============================================================
+
+// Recebe a notificação push do servidor (Supabase Edge Function)
+self.addEventListener('push', (event) => {
+    let data = { title: 'ZR Team', body: 'Tens uma nova notificação.', url: '/' };
+
+    if (event.data) {
+        try {
+            data = { ...data, ...event.data.json() };
+        } catch (_) {
+            data.body = event.data.text();
+        }
+    }
+
+    event.waitUntil(
+        self.registration.showNotification(data.title, {
+            body: data.body,
+            icon: '/icons/icon-192.png',
+            badge: '/icons/icon-72.png',
+            data: { url: data.url },
+            vibrate: [200, 100, 200],
+        })
+    );
+});
+
+// Ao clicar na notificação, abre ou foca a aba correspondente
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const targetUrl = event.notification.data?.url || '/';
+
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            // Se a app já está aberta, foca-a
+            for (const client of clientList) {
+                if (client.url.includes(self.location.origin) && 'focus' in client) {
+                    client.navigate(targetUrl);
+                    return client.focus();
+                }
+            }
+            // Senão, abre uma nova janela
+            if (clients.openWindow) {
+                return clients.openWindow(targetUrl);
+            }
+        })
+    );
+});
