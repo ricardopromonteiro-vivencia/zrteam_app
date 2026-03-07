@@ -152,9 +152,9 @@ export default function Athletes() {
                 belt: editForm.belt,
                 degrees: Number(editForm.degrees),
                 attended_classes: Number(editForm.attended_classes),
-                school_id: editForm.school_id,
-                date_of_birth: editForm.date_of_birth,
-                assigned_professor_id: editForm.assigned_professor_id
+                school_id: editForm.school_id || null,
+                date_of_birth: editForm.date_of_birth || null,
+                assigned_professor_id: editForm.assigned_professor_id || null,
             })
             .eq('id', editingId);
 
