@@ -26,14 +26,31 @@ export default function Announcements() {
         }
     }, [profile]);
 
+    const [authors, setAuthors] = useState<Record<string, string>>({});
+
     const fetchAnnouncements = async () => {
         setLoading(true);
         const { data } = await supabase
             .from('announcements')
-            .select('*, author:profiles(full_name), school:schools!school_id(name)')
+            .select('*, school:schools!school_id(name)')
             .order('created_at', { ascending: false });
 
-        if (data) setAnnouncements(data);
+        if (data) {
+            setAnnouncements(data);
+            // Resolver nomes dos autores separadamente (evita join sem FK)
+            const authorIds = [...new Set(data.map((a: any) => a.author_id).filter(Boolean))];
+            if (authorIds.length > 0) {
+                const { data: profilesData } = await supabase
+                    .from('profiles')
+                    .select('id, full_name')
+                    .in('id', authorIds);
+                if (profilesData) {
+                    const map: Record<string, string> = {};
+                    profilesData.forEach((p: any) => { map[p.id] = p.full_name; });
+                    setAuthors(map);
+                }
+            }
+        }
         setLoading(false);
     };
 
@@ -117,7 +134,7 @@ export default function Announcements() {
                             </div>
                             <div className="ann-footer">
                                 <span><Calendar size={14} /> {new Date(ann.created_at).toLocaleDateString('pt-PT')}</span>
-                                <span><User size={14} /> {ann.author?.full_name}</span>
+                                <span><User size={14} /> {authors[ann.author_id] || '—'}</span>
                                 {ann.school && <span><Building2 size={14} /> {ann.school.name}</span>}
                                 {!ann.school && <span><Building2 size={14} /> Global</span>}
                             </div>
