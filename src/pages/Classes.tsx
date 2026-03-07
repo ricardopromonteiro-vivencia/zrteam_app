@@ -29,12 +29,18 @@ export default function Classes() {
 
     const getTargetDate = (dayId: number) => {
         const today = new Date();
-        const currentDay = today.getDay();
-        let diff = dayId - currentDay;
-        if (diff < 0) diff += 7;
+        // Ajustar para que segunda=1 e domingo=7
+        const currentDay = today.getDay() === 0 ? 7 : today.getDay();
+        const targetDay = dayId === 0 ? 7 : dayId;
+
+        const diff = targetDay - currentDay;
         const result = new Date(today);
         result.setDate(today.getDate() + diff);
-        return result.toISOString().split('T')[0];
+
+        const year = result.getFullYear();
+        const month = String(result.getMonth() + 1).padStart(2, '0');
+        const day = String(result.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     };
 
     // Form State
