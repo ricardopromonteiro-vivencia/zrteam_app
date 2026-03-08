@@ -30,8 +30,7 @@ export default function Settings() {
         async function fetchPaymentStatus() {
             if (!profile?.id) return;
             const now = new Date();
-            const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-            const month = monthNames[now.getMonth()];
+            const month = now.getMonth() + 1; // 1-12
             const year = now.getFullYear();
 
             const { data } = await supabase
@@ -54,7 +53,7 @@ export default function Settings() {
             const { data: profsData } = await supabase
                 .from('profiles')
                 .select('id, full_name, school_id')
-                .in('role', ['Professor', 'Admin'])
+                .in('role', ['Professor', 'Professor Responsável', 'Admin'])
                 .order('full_name');
             if (profsData) setProfessors(profsData);
         }

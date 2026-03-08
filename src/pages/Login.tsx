@@ -38,12 +38,12 @@ export default function Login() {
             if (data) setSchools(data);
         }
         async function loadProfessors() {
-            const { data } = await supabase
+            const { data: profsData } = await supabase
                 .from('profiles')
                 .select('id, full_name, school_id')
-                .in('role', ['Professor', 'Admin'])
+                .in('role', ['Professor', 'Professor Responsável', 'Admin'])
                 .order('full_name');
-            if (data) setProfessors(data);
+            if (profsData) setProfessors(profsData);
         }
         loadSchools();
         loadProfessors();

@@ -38,13 +38,15 @@ export default function Dashboard() {
     totalPresent: 0
   });
   const [loading, setLoading] = useState(true);
+  const [absentAthletes, setAbsentAthletes] = useState<any[]>([]);
+  const [absentFilterDays, setAbsentFilterDays] = useState<number>(30);
 
   useEffect(() => {
     if (profile) {
       fetchDashboardData();
       checkRecurringClasses();
     }
-  }, [profile]);
+  }, [profile, absentFilterDays]);
 
   async function checkRecurringClasses() {
     if (profile.role === 'Atleta') return;
@@ -179,6 +181,13 @@ export default function Dashboard() {
         athleteQuery = athleteQuery.eq('school_id', profile.school_id);
       }
       const { count: athleteCount } = await athleteQuery;
+
+      // Atletas Inativos (Retenção)
+      const { data: absentData } = await supabase.rpc('get_absent_athletes', {
+        p_days: absentFilterDays,
+        p_school_id: profile.role === 'Admin' ? null : profile.school_id
+      });
+      setAbsentAthletes(absentData || []);
 
       if (attendanceData) {
         const counts: Record<string, number> = {};
@@ -408,6 +417,41 @@ export default function Dashboard() {
               </div>
             )}
             <a href="/checkin" style={{ display: 'block', marginTop: '1rem', fontSize: '0.8rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>→ Ir para Painel de Check-in</a>
+          </div>
+
+          {/* Retenção de Alunos (Inativos) */}
+          <div className="admin-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 className="admin-card-title" style={{ margin: 0 }}>⚠️ Retenção (Inativos)</h3>
+              <select
+                value={absentFilterDays}
+                onChange={(e) => setAbsentFilterDays(Number(e.target.value))}
+                style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.3rem 0.5rem', borderRadius: '0.5rem', fontSize: '0.75rem', outline: 'none' }}
+              >
+                <option value={7}>{'> 1 Semana'}</option>
+                <option value={30}>{'> 1 Mês'}</option>
+              </select>
+            </div>
+            {absentAthletes.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', paddingTop: '0.5rem' }}>Todos os atletas treinaram recentemente. Excelente!</p>
+            ) : (
+              <div className="absent-athletes-list" style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                {absentAthletes.map((athlete: any) => (
+                  <div key={athlete.athlete_id} className="today-class-row" style={{ padding: '0.75rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div className="today-class-info">
+                      <span className="today-class-title" style={{ fontSize: '0.9rem' }}>{athlete.full_name}</span>
+                      <span className="today-class-time" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem', fontSize: '0.75rem' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: athlete.belt === 'Branco' ? '#fff' : athlete.belt === 'Azul' ? '#2563eb' : athlete.belt === 'Roxo' ? '#9333ea' : athlete.belt === 'Marrom' ? '#92400e' : athlete.belt === 'Preto' ? '#111827' : '#9ca3af', border: athlete.belt === 'Branco' ? '1px solid #555' : 'none', flexShrink: 0 }}></div>
+                        {athlete.belt} {profile.role === 'Admin' && <span style={{ opacity: 0.5 }}>• {athlete.school_name || 'Sem escola'}</span>}
+                      </span>
+                    </div>
+                    <span className="today-class-pill" style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)', padding: '0.25rem 0.5rem' }}>
+                      {athlete.days_absent} dias
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

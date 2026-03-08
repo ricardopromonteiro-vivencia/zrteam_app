@@ -67,7 +67,7 @@ export default function Athletes() {
         const { data: profsData } = await supabase
             .from('profiles')
             .select('id, full_name, school_id')
-            .in('role', ['Professor', 'Admin']);
+            .in('role', ['Professor', 'Professor Responsável', 'Admin']);
         if (profsData) setProfessors(profsData);
     }
 

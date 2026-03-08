@@ -72,8 +72,8 @@ export default function Classes() {
 
             const { data: profsData } = await supabase
                 .from('profiles')
-                .select('id, full_name, role, school_id')
-                .in('role', ['Professor', 'Admin'])
+                .select('id, full_name, school_id')
+                .in('role', ['Professor', 'Professor Responsável', 'Admin'])
                 .order('full_name');
             if (profsData) setProfessors(profsData);
         }
