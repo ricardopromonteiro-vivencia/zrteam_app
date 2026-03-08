@@ -211,7 +211,7 @@ export default function Athletes() {
             'Faixa': a.belt,
             'Graus': a.degrees,
             'Total Aulas': a.attended_classes,
-            'Professor Associado': a.assigned_professor?.full_name || 'Nenhum',
+            'Professor Associado': a.assigned_professor?.full_name || professors.find(p => p.id === a.assigned_professor_id)?.full_name || 'Nenhum',
             'Email': a.email || 'N/A',
             'Membro Desde': new Date(a.created_at).toLocaleDateString()
         }));

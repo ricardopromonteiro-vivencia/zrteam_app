@@ -239,7 +239,7 @@ export default function Settings() {
                             </div>
                             <div className="info-item">
                                 <label>Professor Responsável</label>
-                                <p>{profile.assigned_professor?.full_name || <span className="text-muted">Nenhum atribuído</span>}</p>
+                                <p>{profile.assigned_professor?.full_name || professors.find(p => p.id === profile.assigned_professor_id)?.full_name || <span className="text-muted">Nenhum atribuído</span>}</p>
                             </div>
                             <div className="info-item">
                                 <label>Mensalidade ({currentMonth} {currentYear})</label>
