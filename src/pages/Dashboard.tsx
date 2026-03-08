@@ -71,14 +71,22 @@ export default function Dashboard() {
       const nextDateStr = nextDate.toISOString().split('T')[0];
 
       // Verificar se já existe a aula para a próxima semana
-      const { data: existing } = await supabase
+      let checkQuery = supabase
         .from('classes')
         .select('id')
         .eq('title', cls.title)
         .eq('date', nextDateStr)
-        .eq('start_time', cls.start_time)
-        .eq('school_id', cls.school_id)
-        .maybeSingle();
+        .eq('start_time', cls.start_time);
+
+      if (cls.school_id) {
+        checkQuery = checkQuery.eq('school_id', cls.school_id);
+      } else {
+        checkQuery = checkQuery.is('school_id', null);
+      }
+
+      // Usar limit(1) em vez de maybeSingle para não rebentar se já houver duplicados anteriores
+      const { data: existingList } = await checkQuery.limit(1);
+      const existing = existingList && existingList.length > 0 ? existingList[0] : null;
 
       if (!existing) {
         // Criar a aula para a próxima semana
