@@ -29,6 +29,13 @@ export default function Classes() {
 
     const getTargetDate = (dayId: number) => {
         const today = new Date();
+
+        // Se hoje for domingo, a vista principal avança para a próxima semana
+        // para que se possa planear desde segunda-feira (amanhã).
+        if (today.getDay() === 0) {
+            today.setDate(today.getDate() + 1); // Passa a referenciar "Segunda-feira" 
+        }
+
         // Ajustar para que segunda=1 e domingo=7
         const currentDay = today.getDay() === 0 ? 7 : today.getDay();
         const targetDay = dayId === 0 ? 7 : dayId;
