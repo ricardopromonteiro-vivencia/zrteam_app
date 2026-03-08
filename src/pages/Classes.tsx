@@ -15,38 +15,38 @@ export default function Classes() {
     const [selectedClassBookings, setSelectedClassBookings] = useState<any[]>([]);
     const [selectedClassTitle, setSelectedClassTitle] = useState('');
     const [loadingBookings, setLoadingBookings] = useState(false);
-    // Gerar os próximos 7 dias a partir de hoje
-    const getRollingWeek = () => {
+    const [selectedDay, setSelectedDay] = useState<number>(new Date().getDay());
+
+    const DAYS_OF_WEEK = [
+        { name: 'Seg', fullName: 'Segunda-feira', id: 1 },
+        { name: 'Ter', fullName: 'Terça-feira', id: 2 },
+        { name: 'Qua', fullName: 'Quarta-feira', id: 3 },
+        { name: 'Qui', fullName: 'Quinta-feira', id: 4 },
+        { name: 'Sex', fullName: 'Sexta-feira', id: 5 },
+        { name: 'Sáb', fullName: 'Sábado', id: 6 },
+        { name: 'Dom', fullName: 'Domingo', id: 0 }
+    ];
+
+    const getTargetDate = (dayId: number) => {
         const today = new Date();
-        const days = [];
-        const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-        const fullDayNames = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(today);
-            d.setDate(today.getDate() + i);
-            days.push({
-                name: dayNames[d.getDay()],
-                fullName: fullDayNames[d.getDay()],
-                id: d.getDay(),
-                dateObj: d // Guardamos a data real para facilitar o cálculo
-            });
+        // Se hoje for domingo, a vista principal avança para a próxima semana
+        // para que se possa planear desde segunda-feira (amanhã).
+        if (today.getDay() === 0) {
+            today.setDate(today.getDate() + 1); // Passa a referenciar "Segunda-feira" 
         }
-        return days;
-    };
 
-    const DAYS_OF_WEEK = getRollingWeek();
+        // Ajustar para que segunda=1 e domingo=7
+        const currentDay = today.getDay() === 0 ? 7 : today.getDay();
+        const targetDay = dayId === 0 ? 7 : dayId;
 
-    // Como o id do dia é agora dinâmico e pode repetir-se se abrirmos o calendário para mais longe,
-    // o ideal é selecionarmos o dia baseando-nos no index do array (0 a 6). 
-    // Atualizamos o estado selectedDay para ser o index do array de dias gerados
-    const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
+        const diff = targetDay - currentDay;
+        const result = new Date(today);
+        result.setDate(today.getDate() + diff);
 
-    const getTargetDate = (index: number) => {
-        const targetDate = DAYS_OF_WEEK[index].dateObj;
-        const year = targetDate.getFullYear();
-        const month = String(targetDate.getMonth() + 1).padStart(2, '0');
-        const day = String(targetDate.getDate()).padStart(2, '0');
+        const year = result.getFullYear();
+        const month = String(result.getMonth() + 1).padStart(2, '0');
+        const day = String(result.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
     };
 
@@ -319,14 +319,14 @@ export default function Classes() {
                         )}
                     </div>
                 )}
-                {DAYS_OF_WEEK.map((day, index) => (
+                {DAYS_OF_WEEK.map(day => (
                     <button
-                        key={index}
-                        className={`day-btn ${selectedDayIndex === index ? 'active' : ''}`}
-                        onClick={() => setSelectedDayIndex(index)}
+                        key={day.id}
+                        className={`day-btn ${selectedDay === day.id ? 'active' : ''}`}
+                        onClick={() => setSelectedDay(day.id)}
                     >
                         <span className="day-short">{day.name}</span>
-                        <span className="day-date">{getTargetDate(index).split('-').reverse().slice(0, 2).join('/')}</span>
+                        <span className="day-date">{getTargetDate(day.id).split('-').reverse().slice(0, 2).join('/')}</span>
                     </button>
                 ))}
             </div>
@@ -336,7 +336,7 @@ export default function Classes() {
             ) : (
                 <div className="classes-grid animate-fade-in">
                     {(() => {
-                        const targetDate = getTargetDate(selectedDayIndex);
+                        const targetDate = getTargetDate(selectedDay);
                         const filteredClasses = classes.filter(cls =>
                             cls.date === targetDate &&
                             (filterSchool === 'all' || cls.school_id === filterSchool)
@@ -346,7 +346,7 @@ export default function Classes() {
                             return (
                                 <div className="empty-state">
                                     <Calendar size={48} className="text-muted" style={{ marginBottom: '1rem' }} />
-                                    <p className="text-muted">Não há aulas para {DAYS_OF_WEEK[selectedDayIndex]?.fullName}.</p>
+                                    <p className="text-muted">Não há aulas para {DAYS_OF_WEEK.find(d => d.id === selectedDay)?.fullName}.</p>
                                 </div>
                             );
                         }
