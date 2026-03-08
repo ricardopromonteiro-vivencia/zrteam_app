@@ -30,17 +30,19 @@ export default function Classes() {
     const getTargetDate = (dayId: number) => {
         const today = new Date();
 
-        // Se hoje for domingo, a vista principal avança para a próxima semana
-        // para que se possa planear desde segunda-feira (amanhã).
-        if (today.getDay() === 0) {
-            today.setDate(today.getDate() + 1); // Passa a referenciar "Segunda-feira" 
-        }
-
         // Ajustar para que segunda=1 e domingo=7
         const currentDay = today.getDay() === 0 ? 7 : today.getDay();
         const targetDay = dayId === 0 ? 7 : dayId;
 
-        const diff = targetDay - currentDay;
+        let diff = targetDay - currentDay;
+
+        // Se o dia alvo "já passou" nesta semana (ex: hoje é Quarta e o botão é Segunda),
+        // somamos 7 dias para mostrar a Segunda-feira da próxima semana.
+        // Assim, a vista mostra sempre os próximos 7 dias.
+        if (diff < 0) {
+            diff += 7;
+        }
+
         const result = new Date(today);
         result.setDate(today.getDate() + diff);
 
