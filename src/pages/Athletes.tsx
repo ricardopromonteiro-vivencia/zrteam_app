@@ -8,11 +8,12 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 const BELTS = [
+    'Branco',
     'Cinza/ branco', 'Cinza', 'Cinza/ Preto',
     'Amarelo / Branco', 'Amarelo', 'Amarelo/ preto',
     'Laranja/ Branco', 'Laranja', 'Laranja/ preto',
     'Verde / Branco', 'Verde', 'Verde / Preto',
-    'Branco', 'Azul', 'Roxo', 'Marrom', 'Preto'
+    'Azul', 'Roxo', 'Marrom', 'Preto'
 ];
 
 const ROLES = ['Atleta', 'Professor', 'Professor Responsável', 'Admin'];
@@ -51,14 +52,14 @@ export default function Athletes() {
     const [schools, setSchools] = useState<any[]>([]);
     const [professors, setProfessors] = useState<any[]>([]);
     const [selectedSchool, setSelectedSchool] = useState<string>('all');
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+    const [sortConfig, setSortConfig] = useState<{ field: 'name' | 'belt', direction: 'asc' | 'desc' }>({ field: 'name', direction: 'asc' });
     const [showArchived, setShowArchived] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<Profile | null>(null);
 
     useEffect(() => {
         fetchAthletes();
         loadSchools();
-    }, [selectedSchool, sortOrder]);
+    }, [selectedSchool]);
 
     async function loadSchools() {
         const { data: schoolsData } = await supabase.from('schools').select('id, name');
@@ -75,8 +76,7 @@ export default function Athletes() {
         setLoading(true);
         let query = supabase
             .from('profiles')
-            .select('*, school:schools!school_id(name)')
-            .order('full_name', { ascending: sortOrder === 'asc' });
+            .select('*, school:schools!school_id(name)');
 
         if (isProfessor(myProfile?.role)) {
             if (isHeadProfessor) {
@@ -178,12 +178,32 @@ export default function Athletes() {
         return archivedMatch && searchMatch;
     });
 
+    const sortedAthletes = [...filtered].sort((a, b) => {
+        if (sortConfig.field === 'belt') {
+            const indexA = BELTS.indexOf(a.belt || '');
+            const indexB = BELTS.indexOf(b.belt || '');
+            const comparison = indexA - indexB;
+            if (comparison === 0) return (a.full_name || '').localeCompare(b.full_name || '');
+            return sortConfig.direction === 'asc' ? comparison : -comparison;
+        } else {
+            const comparison = (a.full_name || '').localeCompare(b.full_name || '');
+            return sortConfig.direction === 'asc' ? comparison : -comparison;
+        }
+    });
+
+    const handleSort = (field: 'name' | 'belt') => {
+        setSortConfig(current => ({
+            field,
+            direction: current.field === field && current.direction === 'asc' ? 'desc' : 'asc'
+        }));
+    };
+
     const exportToPDF = () => {
         const doc = new jsPDF();
         doc.text('Lista de Atletas - ZR Team', 14, 15);
 
         const tableColumn = ["Nome", "Escola", "Idade", "Role", "Faixa", "Graus", "Aulas"];
-        const tableRows = filtered.map(a => [
+        const tableRows = sortedAthletes.map(a => [
             a.full_name,
             a.school?.name || 'Sem Escola',
             calculateAge(a.date_of_birth),
@@ -203,7 +223,7 @@ export default function Athletes() {
     };
 
     const exportToExcel = () => {
-        const excelData = filtered.map(a => ({
+        const excelData = sortedAthletes.map(a => ({
             'Nome': a.full_name,
             'Escola': a.school?.name || 'Sem Escola',
             'Idade': calculateAge(a.date_of_birth),
@@ -291,7 +311,7 @@ export default function Athletes() {
 
             {loading ? (
                 <div className="loading-state">A carregar atletas...</div>
-            ) : filtered.length === 0 ? (
+            ) : sortedAthletes.length === 0 ? (
                 <div className="empty-state">
                     <Users size={48} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
                     <p>Nenhum atleta encontrado.</p>
@@ -301,13 +321,15 @@ export default function Athletes() {
                     <table className="athletes-table">
                         <thead>
                             <tr>
-                                <th onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} style={{ cursor: 'pointer' }}>
-                                    Nome {sortOrder === 'asc' ? '↑' : '↓'}
+                                <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
+                                    Nome {sortConfig.field === 'name' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}
                                 </th>
                                 <th>Escola</th>
                                 <th>Idade</th>
                                 <th>Role</th>
-                                <th>Faixa</th>
+                                <th onClick={() => handleSort('belt')} style={{ cursor: 'pointer' }}>
+                                    Faixa {sortConfig.field === 'belt' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}
+                                </th>
                                 <th>Professor</th>
                                 <th>Graus</th>
                                 <th>Aulas</th>
@@ -316,7 +338,7 @@ export default function Athletes() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filtered.map(athlete => (
+                            {sortedAthletes.map(athlete => (
                                 <tr key={athlete.id} className={editingId === athlete.id ? 'editing-row' : ''}>
                                     {editingId === athlete.id ? (
                                         <>

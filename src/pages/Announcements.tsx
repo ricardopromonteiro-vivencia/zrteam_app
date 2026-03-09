@@ -30,10 +30,16 @@ export default function Announcements() {
 
     const fetchAnnouncements = async () => {
         setLoading(true);
-        const { data } = await supabase
+        let query = supabase
             .from('announcements')
             .select('*, school:schools!school_id(name)')
             .order('created_at', { ascending: false });
+
+        if (!isAdmin) {
+            query = query.or(`target_user_id.is.null,target_user_id.eq.${profile.id}`);
+        }
+
+        const { data } = await query;
 
         if (data) {
             setAnnouncements(data);
