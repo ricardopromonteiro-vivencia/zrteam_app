@@ -193,7 +193,9 @@ export default function Dashboard() {
       // Atletas Inativos (Retenção)
       const { data: absentData } = await supabase.rpc('get_absent_athletes', {
         p_days: absentFilterDays,
-        p_school_id: profile.role === 'Admin' ? null : profile.school_id
+        p_requesting_user_id: profile.id,
+        p_requesting_role: profile.role,
+        p_requesting_school_id: profile.school_id
       });
       setAbsentAthletes(absentData || []);
 
@@ -450,6 +452,7 @@ export default function Dashboard() {
                       <span className="today-class-title" style={{ fontSize: '0.9rem' }}>{athlete.full_name}</span>
                       <span className="today-class-time" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem', fontSize: '0.75rem' }}>
                         <div style={{ width: 8, height: 8, borderRadius: '50%', background: athlete.belt === 'Branco' ? '#fff' : athlete.belt === 'Azul' ? '#2563eb' : athlete.belt === 'Roxo' ? '#9333ea' : athlete.belt === 'Marrom' ? '#92400e' : athlete.belt === 'Preto' ? '#111827' : '#9ca3af', border: athlete.belt === 'Branco' ? '1px solid #555' : 'none', flexShrink: 0 }}></div>
+                        {athlete.user_role && athlete.user_role !== 'Atleta' && <span style={{ background: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.3rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)' }}>{athlete.user_role}</span>}
                         {athlete.belt} {profile.role === 'Admin' && <span style={{ opacity: 0.5 }}>• {athlete.school_name || 'Sem escola'}</span>}
                       </span>
                     </div>
