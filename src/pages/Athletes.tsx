@@ -53,7 +53,7 @@ export default function Athletes() {
     const [schools, setSchools] = useState<any[]>([]);
     const [professors, setProfessors] = useState<any[]>([]);
     const [selectedSchool, setSelectedSchool] = useState<string>('all');
-    const [sortConfig, setSortConfig] = useState<{ field: 'name' | 'belt', direction: 'asc' | 'desc' }>({ field: 'name', direction: 'asc' });
+    const [sortConfig, setSortConfig] = useState<{ field: 'name' | 'belt' | 'school', direction: 'asc' | 'desc' }>({ field: 'name', direction: 'asc' });
     const [showArchived, setShowArchived] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<Profile | null>(null);
 
@@ -63,7 +63,7 @@ export default function Athletes() {
     }, [selectedSchool]);
 
     async function loadSchools() {
-        const { data: schoolsData } = await supabase.from('schools').select('id, name').order('order_index', { ascending: true }).order('name');
+        const { data: schoolsData } = await supabase.from('schools').select('id, name, order_index').order('order_index', { ascending: true }).order('name');
         if (schoolsData) setSchools(schoolsData);
 
         const { data: profsData } = await supabase
@@ -181,7 +181,19 @@ export default function Athletes() {
     });
 
     const sortedAthletes = [...filtered].sort((a, b) => {
-        if (sortConfig.field === 'belt') {
+        if (sortConfig.field === 'school') {
+            const schoolA = schools.find(s => s.id === a.school_id);
+            const schoolB = schools.find(s => s.id === b.school_id);
+            const orderA = schoolA?.order_index ?? 99;
+            const orderB = schoolB?.order_index ?? 99;
+            const comparison = orderA - orderB;
+            if (comparison === 0) {
+                const nameComp = (schoolA?.name || '').localeCompare(schoolB?.name || '');
+                if (nameComp === 0) return (a.full_name || '').localeCompare(b.full_name || '');
+                return sortConfig.direction === 'asc' ? nameComp : -nameComp;
+            }
+            return sortConfig.direction === 'asc' ? comparison : -comparison;
+        } else if (sortConfig.field === 'belt') {
             const indexA = BELTS.indexOf(a.belt || '');
             const indexB = BELTS.indexOf(b.belt || '');
             const comparison = indexA - indexB;
@@ -193,7 +205,7 @@ export default function Athletes() {
         }
     });
 
-    const handleSort = (field: 'name' | 'belt') => {
+    const handleSort = (field: 'name' | 'belt' | 'school') => {
         setSortConfig(current => ({
             field,
             direction: current.field === field && current.direction === 'asc' ? 'desc' : 'asc'
@@ -326,7 +338,9 @@ export default function Athletes() {
                                 <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
                                     Nome {sortConfig.field === 'name' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}
                                 </th>
-                                <th>Escola</th>
+                                <th onClick={() => handleSort('school')} style={{ cursor: 'pointer' }}>
+                                    Escola {sortConfig.field === 'school' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}
+                                </th>
                                 <th>Idade</th>
                                 <th>Role</th>
                                 <th onClick={() => handleSort('belt')} style={{ cursor: 'pointer' }}>
