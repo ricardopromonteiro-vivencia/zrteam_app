@@ -29,7 +29,8 @@ export default function Schools() {
         const { data: schoolsData } = await supabase
             .from('schools')
             .select('*, head_professor:head_professor_id(id, full_name)')
-            .order('name');
+            .order('order_index', { ascending: true })
+            .order('name', { ascending: true });
         if (schoolsData) setSchools(schoolsData);
 
         const { data: profsData } = await supabase
@@ -58,7 +59,8 @@ export default function Schools() {
 
         const schoolData = {
             name: editingSchool.name,
-            head_professor_id: editingSchool.head_professor_id || null
+            head_professor_id: editingSchool.head_professor_id || null,
+            order_index: editingSchool.order_index ? parseInt(editingSchool.order_index, 10) : 99
         };
 
         let error;
@@ -110,6 +112,11 @@ export default function Schools() {
                                 <User size={14} />
                                 {school.head_professor?.full_name || <span style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>Sem professor responsável</span>}
                             </p>
+                            <p>
+                                <span style={{ fontSize: '0.75rem', background: 'var(--border)', padding: '2px 6px', borderRadius: '4px' }}>
+                                    Prioridade: {school.order_index ?? 99}
+                                </span>
+                            </p>
                         </div>
                         <div className="school-actions">
                             <button className="icon-btn edit" onClick={() => setEditingSchool({
@@ -149,6 +156,18 @@ export default function Schools() {
                                     onChange={e => setEditingSchool({ ...editingSchool, name: e.target.value })}
                                     required
                                     placeholder="Ex: ZR Team Fafe"
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label">Ordem de Prioridade (1 = mais alta)</label>
+                                <input
+                                    type="number"
+                                    className="form-input"
+                                    value={editingSchool.order_index ?? 99}
+                                    onChange={e => setEditingSchool({ ...editingSchool, order_index: e.target.value })}
+                                    min="1"
+                                    placeholder="99"
                                 />
                             </div>
 

@@ -48,7 +48,7 @@ export default function Settings() {
             }
         }
         async function loadOptions() {
-            const { data: schoolsData } = await supabase.from('schools').select('id, name').order('name');
+            const { data: schoolsData } = await supabase.from('schools').select('id, name').order('order_index', { ascending: true }).order('name');
             if (schoolsData) setSchools(schoolsData);
             const { data: profsData } = await supabase
                 .from('profiles')

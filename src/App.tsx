@@ -23,6 +23,32 @@ function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Auto-refresh logic (10 minutes)
+  useEffect(() => {
+    let backgroundTime: number | null = null;
+    const TEN_MINUTES_MS = 10 * 60 * 1000;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // App foi minimizada/suspensa
+        backgroundTime = Date.now();
+      } else {
+        // App voltou a ser visível
+        if (backgroundTime) {
+          const timeInBackground = Date.now() - backgroundTime;
+          if (timeInBackground > TEN_MINUTES_MS) {
+            // Se passou demasiado tempo em background, força hard-refresh para puxar updates
+            window.location.reload();
+          }
+          backgroundTime = null; // Reset
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);

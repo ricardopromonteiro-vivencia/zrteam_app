@@ -30,9 +30,9 @@ export default function CheckIn() {
             .eq('date', today);
 
         if (checkIsProfessor(profile?.role) && profile?.school_id) {
-            classesQuery = classesQuery.or(`school_id.eq.${profile.school_id},school_id.is.null`);
+            classesQuery = classesQuery.or(`school_id.eq.${profile.school_id},school_id.is.null,professor_id.eq.${profile.id},second_professor_id.eq.${profile.id}`);
         } else if (checkIsProfessor(profile?.role)) {
-            classesQuery = classesQuery.is('school_id', null);
+            classesQuery = classesQuery.or(`school_id.is.null,professor_id.eq.${profile.id},second_professor_id.eq.${profile.id}`);
         }
         // Se for Admin, não aplicamos filtro de escola (vê todas as aulas de hoje)
 

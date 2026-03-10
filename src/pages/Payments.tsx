@@ -18,6 +18,8 @@ export default function Payments() {
     const [filterUnpaid, setFilterUnpaid] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [selectedSchool, setSelectedSchool] = useState<string>('all');
+    const [schools, setSchools] = useState<any[]>([]);
 
     const isAdmin = profile?.role === 'Admin';
     const isProfessor = checkIsProfessor(profile?.role);
@@ -31,6 +33,11 @@ export default function Payments() {
 
     async function fetchData() {
         setLoading(true);
+
+        if (isAdmin) {
+            const { data: schoolsData } = await supabase.from('schools').select('id, name').order('order_index', { ascending: true }).order('name');
+            if (schoolsData) setSchools(schoolsData);
+        }
 
         // 1. Buscar atletas da escola (ou todos se for Admin sem escola)
         let athletesQuery = supabase
@@ -97,8 +104,9 @@ export default function Payments() {
         const nameMatch = a.full_name.toLowerCase().includes(search.toLowerCase());
         const payment = payments.find(p => p.athlete_id === a.id);
         const isPaid = payment?.status === 'Pago';
+        const schoolMatch = selectedSchool === 'all' || a.school_id === selectedSchool;
         if (filterUnpaid && isPaid) return false;
-        return nameMatch;
+        return nameMatch && schoolMatch;
     });
 
     if (!isAdmin && !isProfessor) return <div className="p-8 text-danger">Acesso restrito.</div>;
@@ -131,6 +139,17 @@ export default function Payments() {
             </div>
 
             <div className="search-bar-row">
+                {isAdmin && schools.length > 0 && (
+                    <select
+                        className="form-input"
+                        style={{ maxWidth: '250px' }}
+                        value={selectedSchool}
+                        onChange={e => setSelectedSchool(e.target.value)}
+                    >
+                        <option value="all">🏫 Todas as Escolas</option>
+                        {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                )}
                 <div className="search-panel">
                     <Search size={20} className="text-muted" />
                     <input

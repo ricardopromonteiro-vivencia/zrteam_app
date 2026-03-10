@@ -61,6 +61,7 @@ export default function Classes() {
     const [isRecurring, setIsRecurring] = useState(false);
     const [selectedSchoolId, setSelectedSchoolId] = useState('');
     const [selectedProfessorId, setSelectedProfessorId] = useState('');
+    const [selectedSecondProfessorId, setSelectedSecondProfessorId] = useState('');
     const [schools, setSchools] = useState<any[]>([]);
     const [professors, setProfessors] = useState<any[]>([]);
     const [filterSchool, setFilterSchool] = useState<string>('all');
@@ -76,12 +77,12 @@ export default function Classes() {
 
         // 1. Buscar escolas e professores (para o form)
         if (isAdmin) {
-            const { data: schoolsData } = await supabase.from('schools').select('id, name').order('name');
+            const { data: schoolsData } = await supabase.from('schools').select('id, name').order('order_index', { ascending: true }).order('name');
             if (schoolsData) setSchools(schoolsData);
 
             const { data: profsData } = await supabase
                 .from('profiles')
-                .select('id, full_name, school_id')
+                .select('id, full_name, school_id, is_global_professor')
                 .in('role', ['Professor', 'Professor Responsável', 'Admin'])
                 .order('full_name');
             if (profsData) setProfessors(profsData);
@@ -90,7 +91,7 @@ export default function Classes() {
         // 2. Buscar aulas com contagem de reservas
         let query = supabase
             .from('classes')
-            .select('*, professor_id:profiles(id, full_name), class_bookings(count)');
+            .select('*, professor_id:profiles!classes_professor_id_fkey(id, full_name), second_professor_id:profiles!classes_second_professor_id_fkey(id, full_name), class_bookings(count)');
 
         // Restrição de visibilidade:
         // Se for Atleta: ver apenas aulas da sua escola
@@ -141,6 +142,7 @@ export default function Classes() {
             end_time: endTime,
             capacity: parseInt(capacity),
             professor_id: finalProfessorId || profile.id,
+            second_professor_id: selectedSecondProfessorId || null,
             school_id: finalSchoolId || null,
             is_recurring: isRecurring
         };
@@ -185,6 +187,7 @@ export default function Classes() {
         setCapacity('30');
         setSelectedSchoolId(profile?.role === 'Admin' ? '' : profile?.school_id || '');
         setSelectedProfessorId(profile?.role === 'Admin' ? '' : profile?.id || '');
+        setSelectedSecondProfessorId('');
     };
 
     const handleOpenCreateModal = () => {
@@ -203,6 +206,7 @@ export default function Classes() {
         setIsRecurring(cls.is_recurring);
         setSelectedSchoolId(cls.school_id || '');
         setSelectedProfessorId(cls.professor_id?.id || cls.professor_id || '');
+        setSelectedSecondProfessorId(cls.second_professor_id?.id || cls.second_professor_id || '');
         setShowModal(true);
     };
 
@@ -378,6 +382,11 @@ export default function Classes() {
                                         <p>
                                             <Users size={16} /> Professor: {cls.professor_id?.full_name || '—'}
                                         </p>
+                                        {cls.second_professor_id && (
+                                            <p style={{ marginTop: '-0.25rem' }}>
+                                                <Users size={16} /> Prof. Auxiliar: {cls.second_professor_id.full_name}
+                                            </p>
+                                        )}
                                         {cls.is_recurring && (
                                             <p className="text-primary" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
                                                 <Calendar size={14} /> Aula Recorrente
@@ -514,12 +523,25 @@ export default function Classes() {
                                         >
                                             <option value="">Selecionar...</option>
                                             {professors
-                                                .filter(p => !selectedSchoolId || p.school_id === selectedSchoolId)
-                                                .map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                                                .filter(p => p.is_global_professor || !selectedSchoolId || p.school_id === selectedSchoolId)
+                                                .map(p => <option key={p.id} value={p.id}>{p.full_name}{p.is_global_professor ? ' (Global)' : ''}</option>)}
                                         </select>
                                     </div>
                                 </div>
                             )}
+                            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                                <label className="form-label">Segundo Professor (Opcional)</label>
+                                <select
+                                    className="form-input"
+                                    value={selectedSecondProfessorId}
+                                    onChange={e => setSelectedSecondProfessorId(e.target.value)}
+                                >
+                                    <option value="">Nenhum...</option>
+                                    {professors
+                                        .filter(p => (p.is_global_professor || !selectedSchoolId || p.school_id === selectedSchoolId || p.school_id === profile?.school_id) && p.id !== selectedProfessorId)
+                                        .map(p => <option key={p.id} value={p.id}>{p.full_name}{p.is_global_professor ? ' (Global)' : ''}</option>)}
+                                </select>
+                            </div>
 
                             <div className="modal-actions">
                                 <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>

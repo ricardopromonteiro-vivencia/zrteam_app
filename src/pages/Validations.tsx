@@ -21,7 +21,7 @@ export default function Validations() {
         if (profile) {
             fetchPending();
             if (isAdmin) {
-                supabase.from('schools').select('id, name').order('name')
+                supabase.from('schools').select('id, name').order('order_index', { ascending: true }).order('name')
                     .then(({ data }) => { if (data) setSchools(data); });
             }
         }

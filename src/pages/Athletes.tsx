@@ -31,6 +31,7 @@ interface Profile {
     email?: string | null;
     created_at: string;
     is_archived?: boolean;
+    is_global_professor?: boolean;
     school?: { name: string };
     assigned_professor?: { full_name: string };
 }
@@ -62,7 +63,7 @@ export default function Athletes() {
     }, [selectedSchool]);
 
     async function loadSchools() {
-        const { data: schoolsData } = await supabase.from('schools').select('id, name');
+        const { data: schoolsData } = await supabase.from('schools').select('id, name').order('order_index', { ascending: true }).order('name');
         if (schoolsData) setSchools(schoolsData);
 
         const { data: profsData } = await supabase
@@ -155,6 +156,7 @@ export default function Athletes() {
                 school_id: editForm.school_id || null,
                 date_of_birth: editForm.date_of_birth || null,
                 assigned_professor_id: editForm.assigned_professor_id || null,
+                is_global_professor: editForm.is_global_professor || false,
             })
             .eq('id', editingId);
 
@@ -375,6 +377,16 @@ export default function Athletes() {
                                                 >
                                                     {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                                                 </select>
+                                                {isAdmin && editForm.role !== 'Atleta' && (
+                                                    <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={!!editForm.is_global_professor}
+                                                            onChange={e => setEditForm(f => ({ ...f, is_global_professor: e.target.checked }))}
+                                                        />
+                                                        <span title="Dá permissão a este professor para dar aulas em qualquer escola">Prof. Global</span>
+                                                    </div>
+                                                )}
                                             </td>
                                             <td>
                                                 <select
@@ -432,6 +444,7 @@ export default function Athletes() {
                                             <td>{calculateAge(athlete.date_of_birth)}</td>
                                             <td>
                                                 <span className={`role-pill role-${athlete.role?.toLowerCase()}`}>{athlete.role}</span>
+                                                {athlete.is_global_professor && <span className="ann-badge system" style={{ display: 'block', marginTop: '4px', fontSize: '0.6rem' }}>Global</span>}
                                             </td>
                                             <td>
                                                 <span className="belt-chip">

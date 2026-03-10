@@ -61,7 +61,7 @@ export default function Announcements() {
     };
 
     const fetchSchools = async () => {
-        const { data } = await supabase.from('schools').select('id, name').order('name');
+        const { data } = await supabase.from('schools').select('id, name').order('order_index', { ascending: true }).order('name');
         if (data) setSchools(data);
     };
 
