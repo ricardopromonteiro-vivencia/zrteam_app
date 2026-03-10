@@ -23,15 +23,15 @@ DECLARE
     supabase_url TEXT := 'https://cbbxlhdscqckqwuxbbuz.supabase.co';
     service_role_key TEXT;
     target_payload JSONB;
+    request_body TEXT;
 BEGIN
-    -- Ler service role key do vault (se configurado)
+    -- Ler service role key do vault
     BEGIN
         SELECT decrypted_secret INTO service_role_key
         FROM vault.decrypted_secrets
         WHERE name = 'supabase_service_role_key'
         LIMIT 1;
     EXCEPTION WHEN OTHERS THEN
-        -- Vault não configurado: notificação ignorada, aviso criado na mesma
         RETURN NEW;
     END;
 
@@ -46,24 +46,25 @@ BEGIN
         target_payload := '"all"'::jsonb;
     END IF;
 
-    -- Chamar Edge Function via pg_net (sem bloquear o INSERT se falhar)
+    request_body := jsonb_build_object(
+        'target', target_payload,
+        'title', '📢 Novo Aviso ZR Team',
+        'body', LEFT(NEW.content, 100),
+        'url', '/avisos'
+    )::text;
+
+    -- Chamar Edge Function via net.http_post (pg_net)
     BEGIN
-        PERFORM extensions.http_post(
+        PERFORM net.http_post(
             url := supabase_url || '/functions/v1/send-push-notification',
             headers := jsonb_build_object(
                 'Content-Type', 'application/json',
                 'Authorization', 'Bearer ' || service_role_key
-            )::text,
-            body := jsonb_build_object(
-                'target', target_payload,
-                'title', '📢 Novo Aviso ZR Team',
-                'body', LEFT(NEW.content, 100),
-                'url', '/avisos'
-            )::text
+            ),
+            body := request_body::jsonb
         );
     EXCEPTION WHEN OTHERS THEN
-        -- Se pg_net falhar por qualquer motivo, o aviso é criado na mesma
-        RAISE NOTICE 'Push notification falhou (pg_net): %', SQLERRM;
+        RAISE NOTICE 'Push notification falhou (net.http_post): %', SQLERRM;
     END;
 
     RETURN NEW;
@@ -89,6 +90,7 @@ DECLARE
     supabase_url TEXT := 'https://cbbxlhdscqckqwuxbbuz.supabase.co';
     service_role_key TEXT;
     target_payload JSONB;
+    request_body TEXT;
 BEGIN
     -- Só disparar quando needs_validation acabou de ser definido como TRUE
     IF NOT (NEW.needs_validation = TRUE AND (OLD IS NULL OR OLD.needs_validation IS DISTINCT FROM TRUE)) THEN
@@ -114,22 +116,25 @@ BEGIN
         target_payload := '"admins"'::jsonb;
     END IF;
 
+    request_body := jsonb_build_object(
+        'target', target_payload,
+        'title', '✅ Nova Validação Pendente',
+        'body', NEW.full_name || ' aguarda validação para entrar no tatame.',
+        'url', '/admin/validacoes'
+    )::text;
+
+    -- Chamar Edge Function via net.http_post (pg_net)
     BEGIN
-        PERFORM extensions.http_post(
+        PERFORM net.http_post(
             url := supabase_url || '/functions/v1/send-push-notification',
             headers := jsonb_build_object(
                 'Content-Type', 'application/json',
                 'Authorization', 'Bearer ' || service_role_key
-            )::text,
-            body := jsonb_build_object(
-                'target', target_payload,
-                'title', '✅ Nova Validação Pendente',
-                'body', NEW.full_name || ' aguarda validação para entrar no tatame.',
-                'url', '/admin/validacoes'
-            )::text
+            ),
+            body := request_body::jsonb
         );
     EXCEPTION WHEN OTHERS THEN
-        RAISE NOTICE 'Push notification falhou (pg_net): %', SQLERRM;
+        RAISE NOTICE 'Push notification falhou (net.http_post): %', SQLERRM;
     END;
 
     RETURN NEW;
