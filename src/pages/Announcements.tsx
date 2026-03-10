@@ -103,11 +103,71 @@ export default function Announcements() {
                     <p className="text-muted">Fica a par das últimas novidades da academia.</p>
                 </div>
                 {isAdmin && (
-                    <button className="btn-primary w-auto" onClick={() => setShowModal(true)}>
-                        <Plus size={20} /> Novo Aviso
+                    <button className="btn-primary w-auto" onClick={() => setShowModal(v => !v)}>
+                        <Plus size={20} /> {showModal ? 'Cancelar' : 'Novo Aviso'}
                     </button>
                 )}
             </div>
+
+            {/* Formulário inline no topo */}
+            {showModal && (
+                <div className="ann-form-inline animate-fade-in">
+                    <h2 style={{ marginBottom: '1.25rem', fontSize: '1.1rem', color: 'white' }}>Criar Novo Aviso</h2>
+                    <form onSubmit={handleCreateAnnouncement}>
+                        <div className="form-group">
+                            <label className="form-label">Título</label>
+                            <input
+                                type="text"
+                                className="form-input"
+                                value={title}
+                                onChange={e => setTitle(e.target.value)}
+                                required
+                                placeholder="Ex: Treino Especial de Sábado"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Mensagem</label>
+                            <textarea
+                                className="form-input"
+                                style={{ minHeight: '120px' }}
+                                value={content}
+                                onChange={e => setContent(e.target.value)}
+                                required
+                                placeholder="Escreve aqui o conteúdo do aviso..."
+                            />
+                        </div>
+                        {profile.role === 'Admin' && (
+                            <div className="form-group">
+                                <label className="form-label">Escola</label>
+                                <select
+                                    className="form-input"
+                                    value={schoolId || 'all'}
+                                    onChange={e => setSchoolId(e.target.value === 'all' ? null : e.target.value)}
+                                >
+                                    <option value="all">Todas as Escolas (Global)</option>
+                                    {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select>
+                            </div>
+                        )}
+                        <div className="form-group">
+                            <label className="form-label">Tipo de Aviso</label>
+                            <select
+                                className="form-input"
+                                value={type}
+                                onChange={e => setType(e.target.value)}
+                            >
+                                <option value="general">Geral</option>
+                                <option value="class_update">Atualização de Aula</option>
+                                <option value="system">Sistema</option>
+                            </select>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                            <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
+                            <button type="submit" className="btn-primary w-auto">Publicar Aviso</button>
+                        </div>
+                    </form>
+                </div>
+            )}
 
             {loading ? (
                 <p className="text-muted">A carregar avisos...</p>
@@ -149,69 +209,20 @@ export default function Announcements() {
                 </div>
             )}
 
-            {showModal && (
-                <div className="modal-overlay">
-                    <div className="modal-content animate-fade-in">
-                        <h2>Criar Novo Aviso</h2>
-                        <form onSubmit={handleCreateAnnouncement}>
-                            <div className="form-group">
-                                <label className="form-label">Título</label>
-                                <input
-                                    type="text"
-                                    className="form-input"
-                                    value={title}
-                                    onChange={e => setTitle(e.target.value)}
-                                    required
-                                    placeholder="Ex: Treino Especial de Sábado"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">Mensagem</label>
-                                <textarea
-                                    className="form-input"
-                                    style={{ minHeight: '120px' }}
-                                    value={content}
-                                    onChange={e => setContent(e.target.value)}
-                                    required
-                                    placeholder="Escreve aqui o conteúdo do aviso..."
-                                />
-                            </div>
-                            {profile.role === 'Admin' && (
-                                <div className="form-group">
-                                    <label className="form-label">Escola</label>
-                                    <select
-                                        className="form-input"
-                                        value={schoolId || 'all'}
-                                        onChange={e => setSchoolId(e.target.value === 'all' ? null : e.target.value)}
-                                    >
-                                        <option value="all">Todas as Escolas (Global)</option>
-                                        {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
-                                </div>
-                            )}
-                            <div className="form-group">
-                                <label className="form-label">Tipo de Aviso</label>
-                                <select
-                                    className="form-input"
-                                    value={type}
-                                    onChange={e => setType(e.target.value)}
-                                >
-                                    <option value="general">Geral</option>
-                                    <option value="class_update">Atualização de Aula</option>
-                                    <option value="system">Sistema</option>
-                                </select>
-                            </div>
-                            <div className="modal-actions">
-                                <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
-                                <button type="submit" className="btn-primary w-auto">Publicar Aviso</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+
 
             <style>{`
                 .announcements-page { padding-bottom: 2rem; }
+                .ann-form-inline {
+                    background: var(--bg-card);
+                    border: 1px solid rgba(16,185,129,0.3);
+                    border-radius: 1rem;
+                    padding: 1.5rem;
+                    margin-bottom: 1.5rem;
+                    max-width: 800px;
+                    margin-left: auto;
+                    margin-right: auto;
+                }
                 .announcements-list { display: flex; flex-direction: column; gap: 1.5rem; max-width: 800px; margin: 0 auto; }
                 
                 .announcement-card {
