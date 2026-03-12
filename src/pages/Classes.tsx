@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Users, Calendar, Clock, Trash2, CheckCircle, Edit2 } from 'lucide-react';
+import { Plus, Users, Calendar, Clock, Trash2, CheckCircle, Edit2, FileSpreadsheet, FileText, CreditCard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { isProfessor } from '../lib/roles';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 export default function Classes() {
     const { profile } = useOutletContext<{ profile: any }>();
@@ -14,7 +17,9 @@ export default function Classes() {
     const [showBookingsModal, setShowBookingsModal] = useState(false);
     const [selectedClassBookings, setSelectedClassBookings] = useState<any[]>([]);
     const [selectedClassTitle, setSelectedClassTitle] = useState('');
+    const [selectedClass, setSelectedClass] = useState<any>(null);
     const [loadingBookings, setLoadingBookings] = useState(false);
+    const [paymentBlocked, setPaymentBlocked] = useState(false);
     const [selectedDay, setSelectedDay] = useState<number>(new Date().getDay());
 
     const DAYS_OF_WEEK = [
@@ -118,6 +123,24 @@ export default function Classes() {
 
         if (classData) setClasses(classData);
         if (bookingData) setUserBookings(bookingData.map(b => b.class_id));
+
+        // Verificar bloqueio de pagamento para Atletas (a partir do dia 11)
+        if (profile?.role === 'Atleta') {
+            const today = new Date();
+            if (today.getDate() >= 11) {
+                const { data: payment } = await supabase
+                    .from('payments')
+                    .select('id')
+                    .eq('athlete_id', profile.id)
+                    .eq('month', today.getMonth() + 1)
+                    .eq('year', today.getFullYear())
+                    .eq('status', 'Pago')
+                    .limit(1);
+                setPaymentBlocked(!payment || payment.length === 0);
+            } else {
+                setPaymentBlocked(false);
+            }
+        }
 
         setLoading(false);
     };
@@ -251,6 +274,7 @@ export default function Classes() {
 
     const handleViewBookings = async (cls: any) => {
         setSelectedClassTitle(cls.title);
+        setSelectedClass(cls);
         setShowBookingsModal(true);
         setLoadingBookings(true);
 
@@ -274,6 +298,46 @@ export default function Classes() {
             console.error('Erro ao buscar inscritos:', error);
         }
         setLoadingBookings(false);
+    };
+
+    const handleExportExcel = () => {
+        if (!selectedClassBookings.length) return;
+        const rows = selectedClassBookings.map((b: any) => ({
+            'Nome': b.profiles?.full_name || '—',
+            'Faixa': b.profiles?.belt || '—',
+            'Graus': b.profiles?.degrees ?? 0,
+            'Estado': b.status
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Inscritos');
+        const dateStr = selectedClass?.date ? selectedClass.date.replace(/-/g, '') : 'export';
+        XLSX.writeFile(wb, `inscritos_${selectedClassTitle.replace(/ /g,'_')}_${dateStr}.xlsx`);
+    };
+
+    const handleExportPDF = () => {
+        if (!selectedClassBookings.length) return;
+        const doc = new jsPDF();
+        const dateFormatted = selectedClass?.date
+            ? new Date(selectedClass.date + 'T12:00:00').toLocaleDateString('pt-PT')
+            : '';
+        doc.setFontSize(16);
+        doc.text(`Inscritos: ${selectedClassTitle}`, 14, 18);
+        if (dateFormatted) { doc.setFontSize(10); doc.text(dateFormatted, 14, 25); }
+        autoTable(doc, {
+            startY: 30,
+            head: [['Nome', 'Faixa', 'Graus', 'Estado']],
+            body: selectedClassBookings.map((b: any) => [
+                b.profiles?.full_name || '—',
+                b.profiles?.belt || '—',
+                b.profiles?.degrees ?? 0,
+                b.status
+            ]),
+            styles: { fontSize: 9 },
+            headStyles: { fillColor: [16, 185, 129] }
+        });
+        const dateStr = selectedClass?.date ? selectedClass.date.replace(/-/g, '') : 'export';
+        doc.save(`inscritos_${selectedClassTitle.replace(/ /g,'_')}_${dateStr}.pdf`);
     };
 
     const handleDeleteClass = async (classId: string) => {
@@ -405,16 +469,26 @@ export default function Classes() {
 
                                     {/* Inscrição: Atletas e Professores podem inscrever-se */}
                                     {(profile?.role === 'Atleta' || profile?.role === 'Professor') && (
-                                        <button
-                                            className={`btn-booking mt-4 w-full ${isEnrolled ? 'btn-enrolled' : 'btn-primary'}`}
-                                            onClick={() => handleBooking(cls.id)}
-                                        >
-                                            {isEnrolled ? (
-                                                <><CheckCircle size={18} /> Inscrito (Desmarcar)</>
-                                            ) : (
-                                                <><Plus size={18} /> Inscrever-me</>
-                                            )}
-                                        </button>
+                                        paymentBlocked && !isEnrolled && profile?.role === 'Atleta' ? (
+                                            <button
+                                                className="btn-booking mt-4 w-full"
+                                                disabled
+                                                style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.6rem', borderRadius: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}
+                                            >
+                                                <CreditCard size={17} /> Pagamento em Falta
+                                            </button>
+                                        ) : (
+                                            <button
+                                                className={`btn-booking mt-4 w-full ${isEnrolled ? 'btn-enrolled' : 'btn-primary'}`}
+                                                onClick={() => handleBooking(cls.id)}
+                                            >
+                                                {isEnrolled ? (
+                                                    <><CheckCircle size={18} /> Inscrito (Desmarcar)</>
+                                                ) : (
+                                                    <><Plus size={18} /> Inscrever-me</>
+                                                )}
+                                            </button>
+                                        )
                                     )}
                                 </div>
                             );
@@ -453,6 +527,16 @@ export default function Classes() {
                             </div>
                         )}
                         <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
+                            {selectedClassBookings.length > 0 && (
+                                <>
+                                    <button className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }} onClick={handleExportExcel}>
+                                        <FileSpreadsheet size={16} /> Excel
+                                    </button>
+                                    <button className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }} onClick={handleExportPDF}>
+                                        <FileText size={16} /> PDF
+                                    </button>
+                                </>
+                            )}
                             <button className="btn-primary" onClick={() => setShowBookingsModal(false)}>Fechar</button>
                         </div>
                     </div>

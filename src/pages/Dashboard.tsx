@@ -40,6 +40,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [absentAthletes, setAbsentAthletes] = useState<any[]>([]);
   const [absentFilterDays, setAbsentFilterDays] = useState<number>(30);
+  const [daysSinceLastTraining, setDaysSinceLastTraining] = useState<number | null>(null);
 
   useEffect(() => {
     if (profile) {
@@ -226,6 +227,29 @@ export default function Dashboard() {
       weekClasses: weekCount || 0,
       nextClasses: bookings?.map((b: any) => ({ ...b.classes, booking_id: b.id })).filter(Boolean) || []
     }));
+
+    // Calcular dias sem treinar (apenas para Atletas)
+    if (profile.role === 'Atleta') {
+      const { data: lastPresence } = await supabase
+        .from('class_bookings')
+        .select('classes(date)')
+        .eq('user_id', profile.id)
+        .eq('status', 'Presente')
+        .order('classes(date)', { ascending: false })
+        .limit(1);
+
+      if (lastPresence && lastPresence.length > 0) {
+        const lastDate = new Date((lastPresence[0] as any).classes?.date + 'T12:00:00');
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const diffMs = today.getTime() - lastDate.getTime();
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        setDaysSinceLastTraining(diffDays);
+      } else {
+        setDaysSinceLastTraining(-1); // Sem presenças registadas
+      }
+    }
+
     setLoading(false);
   }
 
@@ -561,6 +585,40 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Contador de dias sem treinar */}
+      {!loading && profile.role === 'Atleta' && daysSinceLastTraining !== null && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '1rem',
+          padding: '0.9rem 1.25rem',
+          borderRadius: '0.75rem',
+          marginBottom: '1.25rem',
+          border: '1px solid',
+          ...(daysSinceLastTraining === -1
+            ? { background: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.3)', color: '#93c5fd' }
+            : daysSinceLastTraining === 0
+            ? { background: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.3)', color: '#6ee7b7' }
+            : daysSinceLastTraining <= 7
+            ? { background: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.3)', color: '#fcd34d' }
+            : { background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)', color: '#fca5a5' })
+        }}>
+          <span style={{ fontSize: '1.5rem' }}>
+            {daysSinceLastTraining === -1 ? '🔵'
+              : daysSinceLastTraining === 0 ? '🎉'
+              : daysSinceLastTraining <= 7 ? '🟠'
+              : '🔴'}
+          </span>
+          <span style={{ fontWeight: 600, fontSize: '0.92rem' }}>
+            {daysSinceLastTraining === -1
+              ? 'Ainda não tens presenças registadas.'
+              : daysSinceLastTraining === 0
+              ? 'Treino de hoje já foi contabilizado! Excelente! 🥋'
+              : daysSinceLastTraining === 1
+              ? '1 dia sem treinar.'
+              : `${daysSinceLastTraining} dias sem treinar${daysSinceLastTraining > 7 ? ' — Volta ao tatame!' : '.'}`}
+          </span>
+        </div>
+      )}
 
       <div className="dashboard-grid">
         <div className="progression-column">
