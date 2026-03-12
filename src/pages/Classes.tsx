@@ -527,7 +527,7 @@ export default function Classes() {
                             </div>
                         )}
                         <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
-                            {selectedClassBookings.length > 0 && (
+                            {selectedClassBookings.length > 0 && (profile?.role === 'Admin' || profile?.role === 'Professor Responsável') && (
                                 <>
                                     <button className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }} onClick={handleExportExcel}>
                                         <FileSpreadsheet size={16} /> Excel

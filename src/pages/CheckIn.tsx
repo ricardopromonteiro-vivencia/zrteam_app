@@ -10,6 +10,8 @@ export default function CheckIn() {
     const [selectedClass, setSelectedClass] = useState<any>(null);
     const [bookings, setBookings] = useState<any[]>([]);
     const [allSchoolAthletes, setAllSchoolAthletes] = useState<any[]>([]);
+    const [schools, setSchools] = useState<any[]>([]);
+    const [filterSchool, setFilterSchool] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(false);
     const [pendingAthleteConfirm, setPendingAthleteConfirm] = useState<any>(null);
@@ -21,6 +23,13 @@ export default function CheckIn() {
     // Buscar aulas e atletas da própria escola
     useEffect(() => {
         const today = new Date().toISOString().split('T')[0];
+
+        // Buscar escolas para admin
+        if (isAdmin) {
+            supabase.from('schools').select('id, name').order('order_index').order('name').then(({ data }) => {
+                if (data) setSchools(data);
+            });
+        }
 
         // Aulas de hoje: Filtrar por escola do professor ou mostrar órfãs (null)
         // Admins vêem todas
@@ -48,7 +57,7 @@ export default function CheckIn() {
         // Atletas: Admin vê todos, Professor vê os da sua escola
         let athleteQuery = supabase
             .from('profiles')
-            .select('id, full_name, belt, degrees')
+            .select('id, full_name, belt, degrees, school_id')
             .eq('role', 'Atleta')
             .eq('is_archived', false)
             .order('full_name');
@@ -190,8 +199,11 @@ export default function CheckIn() {
         setLoading(false);
     };
 
+    const displayedClasses = todayClasses.filter(cls => filterSchool === 'all' || cls.school_id === filterSchool);
+    const displayedAthletes = allSchoolAthletes.filter(a => filterSchool === 'all' || a.school_id === filterSchool);
+
     const filteredAthletes = searchQuery.trim().length >= 1
-        ? allSchoolAthletes.filter((a: any) =>
+        ? displayedAthletes.filter((a: any) =>
             a.full_name.toLowerCase().includes(searchQuery.toLowerCase()) &&
             !bookings.some((b: any) => b.user_id?.id === a.id)
         )
@@ -212,14 +224,45 @@ export default function CheckIn() {
         <div className="checkin-page animate-fade-in">
             <h1 className="page-title">Painel de Check-in</h1>
 
+            {isAdmin && schools.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                    <select
+                        value={filterSchool}
+                        onChange={e => {
+                            setFilterSchool(e.target.value);
+                            setSelectedClass(null);
+                        }}
+                        style={{
+                            background: 'var(--bg-card)', border: '1px solid var(--border)',
+                            borderRadius: '0.5rem', padding: '0.4rem 0.75rem',
+                            color: filterSchool !== 'all' ? 'var(--primary)' : 'var(--text-muted)',
+                            fontSize: '0.8rem', cursor: 'pointer', outline: 'none'
+                        }}
+                    >
+                        <option value="all">🏫 Todas as Escolas</option>
+                        {schools.map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                    </select>
+                    {filterSchool !== 'all' && (
+                        <button
+                            onClick={() => { setFilterSchool('all'); setSelectedClass(null); }}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem' }}
+                        >
+                            ✕ Limpar filtro
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Aulas de Hoje */}
             <div className="today-classes">
                 <h2 className="section-title">Aulas de Hoje</h2>
-                {todayClasses.length === 0 ? (
+                {displayedClasses.length === 0 ? (
                     <p style={{ color: 'var(--text-muted)' }}>Não há aulas agendadas para hoje.</p>
                 ) : (
                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                        {todayClasses.map(cls => (
+                        {displayedClasses.map(cls => (
                             <button
                                 key={cls.id}
                                 onClick={() => loadBookings(cls)}
