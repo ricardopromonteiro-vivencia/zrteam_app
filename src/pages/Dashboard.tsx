@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { Activity, Calendar, Clock, ExternalLink, Download } from 'lucide-react';
+import { Activity, Calendar, Clock, ExternalLink, Download, Edit2, Target } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { isProfessor } from '../lib/roles';
 import jsPDF from 'jspdf';
@@ -41,6 +41,10 @@ export default function Dashboard() {
   const [absentAthletes, setAbsentAthletes] = useState<any[]>([]);
   const [absentFilterDays, setAbsentFilterDays] = useState<number>(30);
   const [daysSinceLastTraining, setDaysSinceLastTraining] = useState<number | null>(null);
+  const [monthlyAttended, setMonthlyAttended] = useState<number>(0);
+  const [monthlyGoal, setMonthlyGoal] = useState<number | null>(null);
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [goalInput, setGoalInput] = useState('');
 
   useEffect(() => {
     if (profile) {
@@ -228,7 +232,7 @@ export default function Dashboard() {
       nextClasses: bookings?.map((b: any) => ({ ...b.classes, booking_id: b.id })).filter(Boolean) || []
     }));
 
-    // Calcular dias sem treinar (apenas para Atletas)
+    // Calcular dias sem treinar + objetivo mensal (apenas para Atletas)
     if (profile.role === 'Atleta') {
       const { data: lastPresence } = await supabase
         .from('class_bookings')
@@ -246,8 +250,25 @@ export default function Dashboard() {
         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
         setDaysSinceLastTraining(diffDays);
       } else {
-        setDaysSinceLastTraining(-1); // Sem presenças registadas
+        setDaysSinceLastTraining(-1);
       }
+
+      // Aulas realizadas este mês
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      const { count: monthCount } = await supabase
+        .from('class_bookings')
+        .select('classes!inner(date)', { count: 'exact', head: true })
+        .eq('user_id', profile.id)
+        .eq('status', 'Presente')
+        .gte('classes.date', firstDayOfMonth)
+        .lte('classes.date', lastDayOfMonth);
+      setMonthlyAttended(monthCount || 0);
+
+      // Objetivo mensal guardado no perfil
+      setMonthlyGoal(profile.monthly_goal ?? null);
+      setGoalInput(profile.monthly_goal ? String(profile.monthly_goal) : '');
     }
 
     setLoading(false);
@@ -324,6 +345,26 @@ export default function Dashboard() {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Presenças");
     XLSX.writeFile(workbook, `ZRTeam_Historico_${profile.full_name.replace(/ /g, '_')}.xlsx`);
     setLoading(false);
+  };
+
+  const handleSaveGoal = async () => {
+    const val = parseInt(goalInput, 10);
+    if (isNaN(val) || val < 1 || val > 365) return;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ monthly_goal: val })
+      .eq('id', profile.id);
+    if (!error) {
+      setMonthlyGoal(val);
+      setEditingGoal(false);
+    }
+  };
+
+  const handleClearGoal = async () => {
+    await supabase.from('profiles').update({ monthly_goal: null }).eq('id', profile.id);
+    setMonthlyGoal(null);
+    setGoalInput('');
+    setEditingGoal(false);
   };
 
   if (!profile) return null;
@@ -585,6 +626,70 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Card: Objetivo Mensal */}
+      {profile.role === 'Atleta' && !loading && (
+        <div style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          borderRadius: '0.75rem', padding: '1rem 1.25rem', marginBottom: '1rem'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <span style={{ fontWeight: 700, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Target size={16} style={{ color: 'var(--primary)' }} /> Objetivo Mensal
+            </span>
+            {monthlyGoal !== null && !editingGoal && (
+              <button onClick={() => { setEditingGoal(true); setGoalInput(String(monthlyGoal)); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem' }}>
+                <Edit2 size={13} /> Alterar
+              </button>
+            )}
+          </div>
+
+          {editingGoal ? (
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                type="number" min="1" max="365"
+                value={goalInput}
+                onChange={e => setGoalInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSaveGoal()}
+                placeholder="Ex: 12"
+                style={{ width: '80px', padding: '0.35rem 0.6rem', borderRadius: '0.4rem', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'white', fontSize: '0.9rem', outline: 'none' }}
+                autoFocus
+              />
+              <button onClick={handleSaveGoal} className="btn-primary" style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}>Guardar</button>
+              <button onClick={() => setEditingGoal(false)} className="btn-secondary" style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}>Cancelar</button>
+              {monthlyGoal !== null && (
+                <button onClick={handleClearGoal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'underline' }}>Remover objetivo</button>
+              )}
+            </div>
+          ) : monthlyGoal === null ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Ainda não definiste um objetivo mensal.</p>
+              <button onClick={() => setEditingGoal(true)} className="btn-primary" style={{ padding: '0.3rem 0.9rem', fontSize: '0.8rem' }}>🎯 Definir Objetivo</button>
+            </div>
+          ) : (() => {
+            const pct = Math.min(100, Math.round((monthlyAttended / monthlyGoal) * 100));
+            const remaining = Math.max(0, monthlyGoal - monthlyAttended);
+            const achieved = monthlyAttended >= monthlyGoal;
+            return (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
+                  <span>{monthlyAttended} / {monthlyGoal} aulas este mês</span>
+                  <span style={{ color: achieved ? '#10b981' : 'var(--text-muted)', fontWeight: 600 }}>{pct}%</span>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '9999px', height: '8px', overflow: 'hidden', marginBottom: '0.5rem' }}>
+                  <div style={{ width: `${pct}%`, height: '100%', borderRadius: '9999px', background: achieved ? 'linear-gradient(90deg,#10b981,#34d399)' : 'linear-gradient(90deg,var(--primary),#34d399)', transition: 'width 0.6s ease' }} />
+                </div>
+                <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: achieved ? '#34d399' : 'var(--text-main)' }}>
+                  {achieved
+                    ? '🎉 Objetivo atingido! Parabéns!'
+                    : `Faltam ${remaining} aula${remaining !== 1 ? 's' : ''} para o teu objetivo mensal! 💪`}
+                </p>
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Contador de dias sem treinar */}
       {!loading && profile.role === 'Atleta' && daysSinceLastTraining !== null && (

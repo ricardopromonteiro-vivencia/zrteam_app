@@ -55,6 +55,7 @@ CREATE TABLE public.profiles (
   is_archived boolean NOT NULL DEFAULT false,
   needs_validation boolean NOT NULL DEFAULT false,  -- Atleta novo aguarda validação
   is_global_professor boolean DEFAULT false,         -- Professor pode dar aulas em qualquer escola
+  monthly_goal integer DEFAULT NULL,                 -- Objetivo mensal de aulas (definido pelo próprio atleta)
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
   CONSTRAINT profiles_school_id_fkey FOREIGN KEY (school_id) REFERENCES public.schools(id),
