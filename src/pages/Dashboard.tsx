@@ -45,13 +45,15 @@ export default function Dashboard() {
   const [monthlyGoal, setMonthlyGoal] = useState<number | null>(null);
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalInput, setGoalInput] = useState('');
+  const [adminFilterSchool, setAdminFilterSchool] = useState<string>('all');
+  const [schools, setSchools] = useState<any[]>([]);
 
   useEffect(() => {
     if (profile) {
       fetchDashboardData();
       checkRecurringClasses();
     }
-  }, [profile, absentFilterDays]);
+  }, [profile, absentFilterDays, adminFilterSchool]);
 
   async function checkRecurringClasses() {
     if (profile.role === 'Atleta') return;
@@ -148,16 +150,26 @@ export default function Dashboard() {
       const today = now.toISOString().split('T')[0];
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(now.getDate() - 7);
+      const sevenDaysAgoDate = sevenDaysAgo.toISOString().split('T')[0];
 
-      // Presenças dos últimos 7 dias
+      // Buscar escolas (para dropdown de filtro)
+      if (schools.length === 0) {
+        const { data: schoolsData } = await supabase.from('schools').select('id, name').order('order_index').order('name');
+        if (schoolsData) setSchools(schoolsData);
+      }
+
+      // Presenças dos últimos 7 dias — usando data da aula, não created_at
       let attendanceQuery = supabase
         .from('class_bookings')
-        .select('created_at, profiles!inner(school_id)')
+        .select('classes!inner(date, school_id)')
         .eq('status', 'Presente')
-        .gte('created_at', sevenDaysAgo.toISOString());
+        .gte('classes.date', sevenDaysAgoDate)
+        .lte('classes.date', today);
 
       if (isProfessor(profile.role) && profile.school_id) {
-        attendanceQuery = (attendanceQuery as any).eq('profiles.school_id', profile.school_id);
+        attendanceQuery = (attendanceQuery as any).eq('classes.school_id', profile.school_id);
+      } else if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
+        attendanceQuery = (attendanceQuery as any).eq('classes.school_id', adminFilterSchool);
       }
 
       const { data: attendanceData } = await attendanceQuery;
@@ -167,20 +179,24 @@ export default function Dashboard() {
         .from('classes')
         .select('id, title, start_time, end_time, class_bookings(count)')
         .eq('date', today);
-      if (profile.role === 'Professor' && profile.school_id) {
+      if (isProfessor(profile.role) && profile.school_id) {
         todayQuery = todayQuery.eq('school_id', profile.school_id);
+      } else if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
+        todayQuery = todayQuery.eq('school_id', adminFilterSchool);
       }
       const { data: todayClassesData } = await todayQuery.order('start_time', { ascending: true });
 
-      // Total de presenças hoje (com range completo do dia)
-      const todayEnd = today + 'T23:59:59Z';
+      // Total de presenças hoje — via class date
       let presentQuery = supabase
         .from('class_bookings')
-        .select('*', { count: 'exact', head: true })
+        .select('classes!inner(date, school_id)', { count: 'exact', head: true })
         .eq('status', 'Presente')
-        .gte('created_at', today + 'T00:00:00Z')
-        .lte('created_at', todayEnd);
-
+        .eq('classes.date', today);
+      if (isProfessor(profile.role) && profile.school_id) {
+        presentQuery = (presentQuery as any).eq('classes.school_id', profile.school_id);
+      } else if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
+        presentQuery = (presentQuery as any).eq('classes.school_id', adminFilterSchool);
+      }
       const { count: presentToday } = await presentQuery;
 
       // Total de atletas
@@ -189,9 +205,10 @@ export default function Dashboard() {
         .select('*', { count: 'exact', head: true })
         .eq('role', 'Atleta')
         .eq('is_archived', false);
-
-      if (profile.role === 'Professor' && profile.school_id) {
+      if (isProfessor(profile.role) && profile.school_id) {
         athleteQuery = athleteQuery.eq('school_id', profile.school_id);
+      } else if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
+        athleteQuery = athleteQuery.eq('school_id', adminFilterSchool);
       }
       const { count: athleteCount } = await athleteQuery;
 
@@ -206,16 +223,19 @@ export default function Dashboard() {
 
       if (attendanceData) {
         const counts: Record<string, number> = {};
-        for (let i = 0; i < 7; i++) {
+        for (let i = 6; i >= 0; i--) {
           const d = new Date();
           d.setDate(now.getDate() - i);
-          counts[d.toLocaleDateString('pt-PT', { weekday: 'short' })] = 0;
+          counts[d.toISOString().split('T')[0]] = 0;
         }
-        attendanceData.forEach(b => {
-          const day = new Date(b.created_at).toLocaleDateString('pt-PT', { weekday: 'short' });
-          if (day in counts) counts[day]++;
+        attendanceData.forEach((b: any) => {
+          const dateKey = b.classes?.date;
+          if (dateKey && dateKey in counts) counts[dateKey]++;
         });
-        const weeklyAttendance = Object.entries(counts).map(([day, count]) => ({ day, count })).reverse();
+        const weeklyAttendance = Object.entries(counts).map(([dateKey, count]) => ({
+          day: new Date(dateKey + 'T12:00:00').toLocaleDateString('pt-PT', { weekday: 'short' }),
+          count
+        }));
         setStats(prev => ({
           ...prev,
           weeklyAttendance,
@@ -232,7 +252,7 @@ export default function Dashboard() {
       nextClasses: bookings?.map((b: any) => ({ ...b.classes, booking_id: b.id })).filter(Boolean) || []
     }));
 
-    // Calcular dias sem treinar + objetivo mensal (apenas para Atletas)
+    // Calcular dias sem treinar (apenas para Atletas)
     if (profile.role === 'Atleta') {
       const { data: lastPresence } = await supabase
         .from('class_bookings')
@@ -252,21 +272,37 @@ export default function Dashboard() {
       } else {
         setDaysSinceLastTraining(-1);
       }
+    }
 
-      // Aulas realizadas este mês
-      const now = new Date();
-      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-      const { count: monthCount } = await supabase
-        .from('class_bookings')
-        .select('classes!inner(date)', { count: 'exact', head: true })
-        .eq('user_id', profile.id)
-        .eq('status', 'Presente')
-        .gte('classes.date', firstDayOfMonth)
-        .lte('classes.date', lastDayOfMonth);
-      setMonthlyAttended(monthCount || 0);
+    // Objetivo mensal — Atleta (frequentou) e Professor (lecionou)
+    const isAthleteOrProf = profile.role === 'Atleta' || isProfessor(profile.role);
+    if (isAthleteOrProf) {
+      const now2 = new Date();
+      const firstDayOfMonth = new Date(now2.getFullYear(), now2.getMonth(), 1).toISOString().split('T')[0];
+      const lastDayOfMonth = new Date(now2.getFullYear(), now2.getMonth() + 1, 0).toISOString().split('T')[0];
 
-      // Objetivo mensal guardado no perfil
+      if (profile.role === 'Atleta') {
+        // Aulas frequentadas este mês
+        const { count: monthCount } = await supabase
+          .from('class_bookings')
+          .select('classes!inner(date)', { count: 'exact', head: true })
+          .eq('user_id', profile.id)
+          .eq('status', 'Presente')
+          .gte('classes.date', firstDayOfMonth)
+          .lte('classes.date', lastDayOfMonth);
+        setMonthlyAttended(monthCount || 0);
+      } else {
+        // Aulas frequentadas este mês (professor também pode treinar)
+        const { count: monthCount } = await supabase
+          .from('class_bookings')
+          .select('classes!inner(date)', { count: 'exact', head: true })
+          .eq('user_id', profile.id)
+          .eq('status', 'Presente')
+          .gte('classes.date', firstDayOfMonth)
+          .lte('classes.date', lastDayOfMonth);
+        setMonthlyAttended(monthCount || 0);
+      }
+
       setMonthlyGoal(profile.monthly_goal ?? null);
       setGoalInput(profile.monthly_goal ? String(profile.monthly_goal) : '');
     }
@@ -415,8 +451,25 @@ export default function Dashboard() {
             <h1 className="page-title">{timeGreeting}, {greeting} {profile.full_name.split(' ')[0]}! 👋</h1>
             <p className="welcome-text">Aqui está o resumo de hoje no tatame.</p>
           </div>
-          <div className="admin-school-badge">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
             <span className="school-pill">{profile.school?.name || 'ZR Team'}</span>
+            {profile.role === 'Admin' && schools.length > 0 && (
+              <select
+                value={adminFilterSchool}
+                onChange={e => setAdminFilterSchool(e.target.value)}
+                style={{
+                  background: 'var(--bg-card)', border: '1px solid var(--border)',
+                  borderRadius: '0.5rem', padding: '0.3rem 0.65rem',
+                  color: adminFilterSchool !== 'all' ? 'var(--primary)' : 'var(--text-muted)',
+                  fontSize: '0.78rem', cursor: 'pointer', outline: 'none'
+                }}
+              >
+                <option value="all">🏫 Todas as Escolas</option>
+                {schools.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            )}
           </div>
         </header>
 
@@ -453,18 +506,22 @@ export default function Dashboard() {
         </div>
 
         <div className="admin-dashboard-grid">
-          {/* Chart */}
+          {/* Chart — barras horizontais */}
           <div className="admin-card admin-chart-card">
             <h3 className="admin-card-title">📈 Afluência (Últimos 7 dias)</h3>
-            <div className="bar-chart">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
               {stats.weeklyAttendance.map((item, idx) => (
-                <div key={idx} className="bar-wrapper">
-                  <div className="bar-label">{item.count}</div>
-                  <div
-                    className="bar-fill"
-                    style={{ height: `${Math.max(6, (item.count / maxAttendance) * 100)}%` }}
-                  ></div>
-                  <div className="bar-day">{item.day}</div>
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span style={{ width: '2.8rem', textAlign: 'right', fontSize: '0.75rem', color: 'var(--text-muted)', flexShrink: 0, textTransform: 'capitalize' }}>{item.day}</span>
+                  <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: '9999px', height: '10px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${maxAttendance > 0 ? Math.max(4, Math.round((item.count / maxAttendance) * 100)) : 0}%`,
+                      height: '100%', borderRadius: '9999px',
+                      background: item.count === 0 ? 'rgba(255,255,255,0.08)' : (item.count === maxAttendance ? 'linear-gradient(90deg, var(--primary), #34d399)' : 'rgba(16,185,129,0.5)'),
+                      transition: 'width 0.5s ease'
+                    }} />
+                  </div>
+                  <span style={{ width: '1.4rem', textAlign: 'right', fontSize: '0.82rem', fontWeight: 600, color: item.count === 0 ? 'var(--text-muted)' : 'white', flexShrink: 0 }}>{item.count}</span>
                 </div>
               ))}
             </div>
@@ -627,8 +684,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Card: Objetivo Mensal */}
-      {profile.role === 'Atleta' && !loading && (
+      {/* Card: Objetivo Mensal (Atletas e Professores) */}
+      {(profile.role === 'Atleta' || isProfessor(profile.role)) && !loading && (
         <div style={{
           background: 'var(--bg-card)', border: '1px solid var(--border)',
           borderRadius: '0.75rem', padding: '1rem 1.25rem', marginBottom: '1rem'

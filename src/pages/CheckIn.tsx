@@ -60,6 +60,7 @@ export default function CheckIn() {
             .select('id, full_name, belt, degrees, school_id')
             .eq('role', 'Atleta')
             .eq('is_archived', false)
+            .neq('is_hidden', true)
             .order('full_name');
 
         if (isAdmin) {

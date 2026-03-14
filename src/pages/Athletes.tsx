@@ -77,7 +77,8 @@ export default function Athletes() {
         setLoading(true);
         let query = supabase
             .from('profiles')
-            .select('*, school:schools!school_id(name)');
+            .select('*, school:schools!school_id(name)')
+            .neq('is_hidden', true);
 
         if (isProfessor(myProfile?.role)) {
             if (isHeadProfessor) {
@@ -273,7 +274,10 @@ export default function Athletes() {
                 <div>
                     <h1 className="page-title">Gestão de Atletas</h1>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                        {athletes.length} utilizador{athletes.length !== 1 ? 'es' : ''} registado{athletes.length !== 1 ? 's' : ''}
+                        {sortedAthletes.length !== athletes.length
+                            ? <><strong style={{ color: 'var(--primary)' }}>{sortedAthletes.length}</strong> de {athletes.length} resultado{sortedAthletes.length !== 1 ? 's' : ''}</>
+                            : <>{athletes.length} utilizador{athletes.length !== 1 ? 'es' : ''} registado{athletes.length !== 1 ? 's' : ''}</>
+                        }
                     </p>
                 </div>
                 <div className="header-actions">

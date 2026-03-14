@@ -1,8 +1,15 @@
 -- ==============================================================================
 -- 🥋 ZR TEAM APP — ESTRUTURA COMPLETA DA BASE DE DADOS (LIMPA / SEM DADOS)
--- Data de exportação: 2026-03-12
+-- Última atualização: 2026-03-14
 -- Schema real obtido via Supabase Schema Visualizer + funções e triggers da app.
--- 
+--
+-- Changelog:
+--   2026-03-12  Schema base exportado do Supabase
+--   2026-03-13  + monthly_goal (profiles) — objetivo mensal do atleta/professor
+--   2026-03-14  + is_hidden (profiles) — utilizador fantasma/invisível nas listas
+--   2026-03-14  ~ delete_own_user — agora apaga também de auth.users
+--   2026-03-14  ~ get_absent_athletes — excluí utilizadores com is_hidden = true
+--
 -- COMO USAR:
 --   1. Cria um novo projeto no Supabase.
 --   2. Vai ao SQL Editor e corre este ficheiro.
@@ -56,6 +63,7 @@ CREATE TABLE public.profiles (
   needs_validation boolean NOT NULL DEFAULT false,  -- Atleta novo aguarda validação
   is_global_professor boolean DEFAULT false,         -- Professor pode dar aulas em qualquer escola
   monthly_goal integer DEFAULT NULL,                 -- Objetivo mensal de aulas (definido pelo próprio atleta)
+  is_hidden boolean DEFAULT false,                   -- Utilizador invisível/fantasma (não aparece em nenhuma lista)
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
   CONSTRAINT profiles_school_id_fkey FOREIGN KEY (school_id) REFERENCES public.schools(id),
@@ -229,6 +237,7 @@ BEGIN
   LEFT JOIN last_classes lc ON p.id = lc.user_id
   LEFT JOIN public.schools s ON p.school_id = s.id
   WHERE COALESCE(p.is_archived, false) = false
+    AND COALESCE(p.is_hidden, false) = false
     AND (CURRENT_DATE - COALESCE(lc.last_seen_date, p.created_at::date)) >= p_days
     AND (
       (p_requesting_role = 'Admin')
@@ -339,13 +348,20 @@ BEGIN
 END;
 $$;
 
--- Apagar conta própria (perfil + auth user via service_role)
+-- Apagar conta própria completamente (perfil + auth user)
 CREATE OR REPLACE FUNCTION public.delete_own_user()
 RETURNS void AS $$
+DECLARE
+  v_uid uuid := auth.uid();
 BEGIN
-  DELETE FROM public.profiles WHERE id = auth.uid();
+  -- Apagar perfil (cascata para bookings, pagamentos, push_subscriptions, etc.)
+  DELETE FROM public.profiles WHERE id = v_uid;
+  -- Apagar da autenticação — SECURITY DEFINER corre como postgres (acesso a auth.users)
+  DELETE FROM auth.users WHERE id = v_uid;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE plpgsql
+   SECURITY DEFINER
+   SET search_path = public, auth;
 
 -- ==============================================================================
 -- 5. GATILHOS (TRIGGERS)

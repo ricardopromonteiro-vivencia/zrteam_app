@@ -44,6 +44,7 @@ export default function Payments() {
             .from('profiles')
             .select('id, full_name, belt, school_id')
             .eq('role', 'Atleta')
+            .neq('is_hidden', true)
             .order('full_name');
 
         if (checkIsProfessor(profile?.role)) {
