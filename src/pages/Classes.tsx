@@ -69,7 +69,13 @@ export default function Classes() {
     const [selectedSecondProfessorId, setSelectedSecondProfessorId] = useState('');
     const [schools, setSchools] = useState<any[]>([]);
     const [professors, setProfessors] = useState<any[]>([]);
-    const [filterSchool, setFilterSchool] = useState<string>('all');
+    const [filterSchool, setFilterSchool] = useState<string>('initial');
+
+    useEffect(() => {
+        if (filterSchool === 'initial') {
+            setFilterSchool(profile?.school_id || 'all');
+        }
+    }, [profile, filterSchool]);
 
     const isAdmin = profile?.role === 'Admin' || isProfessor(profile?.role);
 
@@ -80,11 +86,11 @@ export default function Classes() {
     const fetchData = async () => {
         setLoading(true);
 
-        // 1. Buscar escolas e professores (para o form)
-        if (isAdmin) {
-            const { data: schoolsData } = await supabase.from('schools').select('id, name').order('order_index', { ascending: true }).order('name');
-            if (schoolsData) setSchools(schoolsData);
+        // 1. Buscar escolas e professores (escolas para todos, professores para o form de admins)
+        const { data: schoolsData } = await supabase.from('schools').select('id, name').order('order_index', { ascending: true }).order('name');
+        if (schoolsData) setSchools(schoolsData);
 
+        if (isAdmin) {
             const { data: profsData } = await supabase
                 .from('profiles')
                 .select('id, full_name, school_id, is_global_professor')
@@ -93,23 +99,10 @@ export default function Classes() {
             if (profsData) setProfessors(profsData);
         }
 
-        // 2. Buscar aulas com contagem de reservas
+        // 2. Buscar aulas com contagem de reservas (agora busca todas as aulas independentemente do role)
         let query = supabase
             .from('classes')
-            .select('*, professor_id:profiles!classes_professor_id_fkey(id, full_name), second_professor_id:profiles!classes_second_professor_id_fkey(id, full_name), class_bookings(count)');
-
-        // Restrição de visibilidade:
-        // Se for Atleta: ver apenas aulas da sua escola
-        // Se for Professor: ver apenas aulas da sua escola
-        // Se for Admin: ver todas
-        if (profile?.role !== 'Admin') {
-            if (profile?.school_id) {
-                query = query.eq('school_id', profile.school_id);
-            } else {
-                // Se não tiver escola, vê as órfãs (ou nenhuma, dependendo da política)
-                query = query.is('school_id', null);
-            }
-        }
+            .select('*, professor_id:profiles!classes_professor_id_fkey(id, full_name), second_professor_id:profiles!classes_second_professor_id_fkey(id, full_name), school:schools!classes_school_id_fkey(name), class_bookings(count)');
 
         const { data: classData } = await query
             .order('date', { ascending: true })
@@ -360,35 +353,37 @@ export default function Classes() {
                 )}
             </div>
 
-            <div className="day-selector">
-                {/* Filtro de Escola — visível apenas para Admin */}
-                {profile?.role === 'Admin' && schools.length > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                        <select
-                            value={filterSchool}
-                            onChange={e => setFilterSchool(e.target.value)}
-                            style={{
-                                background: 'var(--bg-card)', border: '1px solid var(--border)',
-                                borderRadius: '0.5rem', padding: '0.4rem 0.75rem',
-                                color: filterSchool !== 'all' ? 'var(--primary)' : 'var(--text-muted)',
-                                fontSize: '0.8rem', cursor: 'pointer', outline: 'none'
-                            }}
+            {/* Filtro de Escola — acima dos dias da semana */}
+            {schools.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                    <select
+                        value={filterSchool}
+                        onChange={e => setFilterSchool(e.target.value)}
+                        style={{
+                            background: 'var(--bg-card)', border: '1px solid var(--border)',
+                            borderRadius: '0.5rem', padding: '0.4rem 0.75rem',
+                            color: filterSchool !== 'all' ? 'var(--primary)' : 'var(--text-muted)',
+                            fontSize: '0.8rem', cursor: 'pointer', outline: 'none',
+                            minWidth: '180px'
+                        }}
+                    >
+                        <option value="all">🏫 Todas as Escolas</option>
+                        {schools.map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                    </select>
+                    {filterSchool !== 'all' && (
+                        <button
+                            onClick={() => setFilterSchool('all')}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem' }}
                         >
-                            <option value="all">🏫 Todas as Escolas</option>
-                            {schools.map(s => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                        </select>
-                        {filterSchool !== 'all' && (
-                            <button
-                                onClick={() => setFilterSchool('all')}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem' }}
-                            >
-                                ✕ Limpar filtro
-                            </button>
-                        )}
-                    </div>
-                )}
+                            ✕ Limpar filtro
+                        </button>
+                    )}
+                </div>
+            )}
+
+            <div className="day-selector">
                 {DAYS_OF_WEEK.map(day => (
                     <button
                         key={day.id}
@@ -440,6 +435,11 @@ export default function Classes() {
                                     </div>
                                     <div className="class-details">
                                         <p><Clock size={16} /> {cls.start_time.substring(0, 5)} - {cls.end_time.substring(0, 5)}</p>
+                                        {filterSchool === 'all' && cls.school?.name && (
+                                            <p style={{ color: 'var(--primary)', fontWeight: 500 }}>
+                                                🏢 {cls.school.name}
+                                            </p>
+                                        )}
                                         <p>
                                             <Users size={16} /> Vagas: {cls.capacity - (cls.class_bookings?.[0]?.count || 0)} / {cls.capacity}
                                         </p>
@@ -468,28 +468,38 @@ export default function Classes() {
                                     </div>
 
                                     {/* Inscrição: Atletas e Professores podem inscrever-se */}
-                                    {(profile?.role === 'Atleta' || profile?.role === 'Professor') && (
-                                        paymentBlocked && !isEnrolled && profile?.role === 'Atleta' ? (
-                                            <button
-                                                className="btn-booking mt-4 w-full"
-                                                disabled
-                                                style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.6rem', borderRadius: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}
-                                            >
-                                                <CreditCard size={17} /> Pagamento em Falta
-                                            </button>
-                                        ) : (
-                                            <button
-                                                className={`btn-booking mt-4 w-full ${isEnrolled ? 'btn-enrolled' : 'btn-primary'}`}
-                                                onClick={() => handleBooking(cls.id)}
-                                            >
-                                                {isEnrolled ? (
-                                                    <><CheckCircle size={18} /> Inscrito (Desmarcar)</>
-                                                ) : (
-                                                    <><Plus size={18} /> Inscrever-me</>
-                                                )}
-                                            </button>
-                                        )
-                                    )}
+                                    {(profile?.role === 'Atleta' || profile?.role === 'Professor') && (() => {
+                                        const classDateTime = new Date(`${cls.date}T${cls.start_time}`);
+                                        const deadline = new Date(classDateTime.getTime() - 30 * 60000); // 30 mins before
+                                        const now = new Date();
+                                        const isPastDeadline = now >= deadline;
+
+                                        return (
+                                            paymentBlocked && !isEnrolled && profile?.role === 'Atleta' ? (
+                                                <button
+                                                    className="btn-booking mt-4 w-full"
+                                                    disabled
+                                                    style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.6rem', borderRadius: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}
+                                                >
+                                                    <CreditCard size={17} /> Pagamento em Falta
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    className={`btn-booking mt-4 w-full ${isEnrolled ? 'btn-enrolled' : 'btn-primary'}`}
+                                                    disabled={isPastDeadline}
+                                                    style={isPastDeadline ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+                                                    onClick={() => !isPastDeadline && handleBooking(cls.id)}
+                                                    title={isPastDeadline ? 'O prazo para marcação/desmarcação (30 min antes) já terminou.' : ''}
+                                                >
+                                                    {isEnrolled ? (
+                                                        <><CheckCircle size={18} /> Inscrito {isPastDeadline ? '' : '(Desmarcar)'}</>
+                                                    ) : (
+                                                        <><Plus size={18} /> {isPastDeadline ? 'Encerrado' : 'Inscrever-me'}</>
+                                                    )}
+                                                </button>
+                                            )
+                                        );
+                                    })()}
                                 </div>
                             );
                         });

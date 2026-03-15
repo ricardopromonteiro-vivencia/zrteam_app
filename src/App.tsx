@@ -18,6 +18,8 @@ import Payments from './pages/Payments';
 import Announcements from './pages/Announcements';
 import ResetPassword from './pages/ResetPassword';
 import Validations from './pages/Validations';
+import Events from './pages/Events';
+import Documents from './pages/Documents';
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -93,6 +95,8 @@ function App() {
           <Route path="/ajuda" element={<Help />} />
           <Route path="/admin/validacoes" element={<Validations />} />
           <Route path="/validacoes" element={<Validations />} />
+          <Route path="/eventos" element={<Events />} />
+          <Route path="/documentos" element={<Documents />} />
         </Route>
       </Routes>
     </Router>

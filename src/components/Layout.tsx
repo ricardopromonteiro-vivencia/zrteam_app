@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import {
   LogOut, Home, Calendar, Users, Activity, Settings,
   ShieldCheck, Menu, X, Building2, HelpCircle, Download, CreditCard, Megaphone, UserCheck,
-  Bell, BellOff
+  Bell, BellOff, CalendarDays, Folder
 } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { usePushNotifications } from '../hooks/usePushNotifications';
@@ -15,6 +15,7 @@ export default function Layout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
+  const [hasUnreadEvents, setHasUnreadEvents] = useState(false);
   const [pendingValidations, setPendingValidations] = useState(0);
   const { isSupported, isSubscribed, subscribe, unsubscribe } = usePushNotifications(profile?.id);
   const navigate = useNavigate();
@@ -123,6 +124,43 @@ export default function Layout() {
     }
   }, [profile, location.pathname]);
 
+  // Verificar eventos não lidos
+  useEffect(() => {
+    if (!profile) return;
+    async function checkUnreadEvents() {
+      let query = supabase
+        .from('events')
+        .select('created_at, school_id')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (profile.role !== 'Admin') {
+         query = query.or(`school_id.is.null,school_id.eq.${profile.school_id}`);
+      }
+      
+      const { data } = await query.single();
+
+      if (data) {
+        const lastSeenKey = `events_last_seen_${profile.id}`;
+        const lastSeen = localStorage.getItem(lastSeenKey);
+        const latestTs = new Date(data.created_at).getTime();
+        if (!lastSeen || latestTs > parseInt(lastSeen)) {
+          setHasUnreadEvents(true);
+        } else {
+          setHasUnreadEvents(false);
+        }
+      }
+    }
+    checkUnreadEvents();
+
+    if (location.pathname === '/eventos') {
+      if (profile?.id) {
+        localStorage.setItem(`events_last_seen_${profile.id}`, Date.now().toString());
+        setHasUnreadEvents(false);
+      }
+    }
+  }, [profile, location.pathname]);
+
   // Verificar validações pendentes (para badge)
   useEffect(() => {
     if (!profile) return;
@@ -156,6 +194,8 @@ export default function Layout() {
     ? [
       { name: 'Dashboard', path: '/dashboard', icon: Home },
       { name: 'Aulas', path: '/aulas', icon: Calendar },
+      { name: 'Eventos', path: '/eventos', icon: CalendarDays, badge: hasUnreadEvents },
+      { name: 'Documentos', path: '/documentos', icon: Folder },
       { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
       { name: 'Área Pessoal', path: '/settings', icon: Settings },
     ]
@@ -163,12 +203,14 @@ export default function Layout() {
       { name: 'Dashboard', path: '/dashboard', icon: Activity },
       { name: 'Gestão de Aulas', path: '/admin/aulas', icon: Calendar },
       ...(isProfessor(profile?.role) ? [{ name: 'Aulas', path: '/aulas', icon: Calendar }] : []),
+      { name: 'Eventos', path: '/eventos', icon: CalendarDays, badge: hasUnreadEvents },
       { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
       { name: 'Atletas', path: '/admin/atletas', icon: Users },
       ...(profile?.role === 'Admin' ? [{ name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 }] : []),
       { name: 'Pagamentos', path: '/admin/pagamentos', icon: CreditCard },
       { name: 'Check-in', path: '/admin/checkin', icon: ShieldCheck },
       { name: 'Validações', path: '/admin/validacoes', icon: UserCheck, badge: pendingValidations > 0 },
+      { name: 'Documentos', path: '/documentos', icon: Folder },
       { name: 'Definições', path: '/settings', icon: Settings },
     ];
 
@@ -288,6 +330,7 @@ export default function Layout() {
         </div>
         <div className="zr-credits">
           <p>© {new Date().getFullYear()} Todos os direitos reservados</p>
+          <p><a href="https://tatamecontrol.netlify.app/" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>Tatame Control</a></p>
           <p>Desenvolvido por <strong>Monteirismo</strong></p>
         </div>
       </nav>

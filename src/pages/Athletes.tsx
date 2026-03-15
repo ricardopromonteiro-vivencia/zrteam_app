@@ -34,6 +34,7 @@ interface Profile {
     is_global_professor?: boolean;
     school?: { name: string };
     assigned_professor?: { full_name: string };
+    faltas?: number;
 }
 
 export default function Athletes() {
@@ -53,7 +54,7 @@ export default function Athletes() {
     const [schools, setSchools] = useState<any[]>([]);
     const [professors, setProfessors] = useState<any[]>([]);
     const [selectedSchool, setSelectedSchool] = useState<string>('all');
-    const [sortConfig, setSortConfig] = useState<{ field: 'name' | 'belt' | 'school', direction: 'asc' | 'desc' }>({ field: 'name', direction: 'asc' });
+    const [sortConfig, setSortConfig] = useState<{ field: 'name' | 'belt' | 'school' | 'faltas', direction: 'asc' | 'desc' }>({ field: 'name', direction: 'asc' });
     const [showArchived, setShowArchived] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<Profile | null>(null);
 
@@ -90,8 +91,24 @@ export default function Athletes() {
             query = query.eq('school_id', selectedSchool);
         }
 
-        const { data, error } = await query;
-        if (!error && data) setAthletes(data);
+        const [{ data, error }, { data: faltasData }] = await Promise.all([
+            query,
+            supabase.from('class_bookings').select('user_id').eq('status', 'Falta')
+        ]);
+
+        if (!error && data) {
+            const faltasMap = (faltasData || []).reduce((acc: any, curr: any) => {
+                acc[curr.user_id] = (acc[curr.user_id] || 0) + 1;
+                return acc;
+            }, {});
+            
+            const enriched = data.map((a: any) => ({
+                ...a,
+                faltas: faltasMap[a.id] || 0
+            }));
+            
+            setAthletes(enriched);
+        }
         setLoading(false);
     }
 
@@ -200,13 +217,17 @@ export default function Athletes() {
             const comparison = indexA - indexB;
             if (comparison === 0) return (a.full_name || '').localeCompare(b.full_name || '');
             return sortConfig.direction === 'asc' ? comparison : -comparison;
+        } else if (sortConfig.field === 'faltas') {
+            const comparison = (a.faltas || 0) - (b.faltas || 0);
+            if (comparison === 0) return (a.full_name || '').localeCompare(b.full_name || '');
+            return sortConfig.direction === 'asc' ? comparison : -comparison;
         } else {
             const comparison = (a.full_name || '').localeCompare(b.full_name || '');
             return sortConfig.direction === 'asc' ? comparison : -comparison;
         }
     });
 
-    const handleSort = (field: 'name' | 'belt' | 'school') => {
+    const handleSort = (field: 'name' | 'belt' | 'school' | 'faltas') => {
         setSortConfig(current => ({
             field,
             direction: current.field === field && current.direction === 'asc' ? 'desc' : 'asc'
@@ -217,7 +238,7 @@ export default function Athletes() {
         const doc = new jsPDF();
         doc.text('Lista de Atletas - ZR Team', 14, 15);
 
-        const tableColumn = ["Nome", "Escola", "Idade", "Role", "Faixa", "Graus", "Aulas"];
+        const tableColumn = ["Nome", "Escola", "Idade", "Role", "Faixa", "Graus", "Aulas", "Faltas"];
         const tableRows = sortedAthletes.map(a => [
             a.full_name,
             a.school?.name || 'Sem Escola',
@@ -225,7 +246,8 @@ export default function Athletes() {
             a.role,
             a.belt,
             a.degrees.toString(),
-            a.attended_classes.toString()
+            a.attended_classes.toString(),
+            (a.faltas || 0).toString()
         ]);
 
         autoTable(doc, {
@@ -246,6 +268,7 @@ export default function Athletes() {
             'Faixa': a.belt,
             'Graus': a.degrees,
             'Total Aulas': a.attended_classes,
+            'Faltas': a.faltas || 0,
             'Professor Associado': a.assigned_professor?.full_name || professors.find(p => p.id === a.assigned_professor_id)?.full_name || 'Nenhum',
             'Email': a.email || 'N/A',
             'Membro Desde': new Date(a.created_at).toLocaleDateString()
@@ -353,6 +376,9 @@ export default function Athletes() {
                                 <th>Professor</th>
                                 <th>Graus</th>
                                 <th>Aulas</th>
+                                <th onClick={() => handleSort('faltas')} style={{ cursor: 'pointer' }}>
+                                    Faltas {sortConfig.field === 'faltas' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}
+                                </th>
                                 <th>Membro desde</th>
                                 {(isAdmin || myProfile?.role === 'Professor') && <th>Ações</th>}
                             </tr>
@@ -443,6 +469,7 @@ export default function Athletes() {
                                                     onChange={e => setEditForm(f => ({ ...f, attended_classes: +e.target.value }))}
                                                 />
                                             </td>
+                                            <td className="text-center" style={{ color: 'var(--danger)', fontWeight: 600 }}>{athlete.faltas || 0}</td>
                                             <td>{new Date(athlete.created_at).toLocaleDateString('pt-PT')}</td>
                                             <td>
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -480,6 +507,7 @@ export default function Athletes() {
                                             </td>
                                             <td className="text-center">{athlete.degrees}°</td>
                                             <td className="text-center">{athlete.attended_classes}</td>
+                                            <td className="text-center" style={{ color: 'var(--danger)', fontWeight: 600 }}>{athlete.faltas || 0}</td>
                                             <td className="text-muted">{new Date(athlete.created_at).toLocaleDateString('pt-PT')}</td>
                                             {(isAdmin || isProfessor(myProfile?.role)) && (
                                                 <td>

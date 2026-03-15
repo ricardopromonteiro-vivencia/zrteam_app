@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Mail, Smartphone, Info, MapPin, Clock, Download } from 'lucide-react';
+import { Mail, Smartphone, Download } from 'lucide-react';
 
 export default function Help() {
   const currentYear = new Date().getFullYear();
@@ -86,29 +86,11 @@ export default function Help() {
           </div>
         </section>
 
-        {/* Guia de Check-in */}
-        <section className="help-card">
-          <div className="card-icon"><Info size={32} /></div>
-          <h2>Dicas de Utilização</h2>
-          <div className="guide-content">
-            <h3>Check-in Seguro</h3>
-            <p>Para fazer check-in com sucesso:</p>
-            <ul className="tips-list">
-              <li>
-                <MapPin size={16} className="tip-icon" />
-                <span>Deves estar dentro das instalações da escola, a aplicação usa a tua localização.</span>
-              </li>
-              <li>
-                <Clock size={16} className="tip-icon" />
-                <span>Podes fazer check-in 30 min antes ou até 30 min depois da aula terminar.</span>
-              </li>
-            </ul>
-          </div>
-        </section>
       </div>
 
       <footer className="help-footer">
-        <p>&copy; {currentYear} ZR Team. Todos os direitos reservados.</p>
+        <p>&copy; {currentYear} Todos os direitos reservados</p>
+        <p><a href="https://tatamecontrol.netlify.app/" target="_blank" rel="noreferrer" className="footer-link">Tatame Control</a></p>
         <p>Desenvolvido por <strong>Monteirismo</strong></p>
       </footer>
 
@@ -244,6 +226,12 @@ export default function Help() {
         .help-footer strong {
           color: var(--primary);
         }
+        .footer-link {
+          color: var(--primary);
+          text-decoration: none;
+          font-weight: 600;
+        }
+        .footer-link:hover { text-decoration: underline; }
       `}</style>
     </div>
   );

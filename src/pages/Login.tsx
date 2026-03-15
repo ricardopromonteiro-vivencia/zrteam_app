@@ -367,6 +367,7 @@ export default function Login() {
                         Problemas no acesso? Contacta <a href="mailto:zrteamcheck@gmail.com" className="link-btn">zrteamcheck@gmail.com</a>
                     </p>
                     <p>© {new Date().getFullYear()} Todos os direitos reservados</p>
+                    <p><a href="https://tatamecontrol.netlify.app/" target="_blank" rel="noreferrer" className="link-btn">Tatame Control</a></p>
                     <p>Desenvolvido por <strong>Monteirismo</strong></p>
                 </div>
             </div>

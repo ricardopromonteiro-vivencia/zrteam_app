@@ -240,7 +240,7 @@ BEGIN
     AND COALESCE(p.is_hidden, false) = false
     AND (CURRENT_DATE - COALESCE(lc.last_seen_date, p.created_at::date)) >= p_days
     AND (
-      (p_requesting_role = 'Admin')
+      (p_requesting_role = 'Admin' AND (p_requesting_school_id IS NULL OR p.school_id = p_requesting_school_id))
       OR (p_requesting_role = 'Professor Responsável' AND p.school_id = p_requesting_school_id)
       OR (p_requesting_role = 'Professor' AND p.assigned_professor_id = p_requesting_user_id)
     )

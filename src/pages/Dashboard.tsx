@@ -47,6 +47,10 @@ export default function Dashboard() {
   const [goalInput, setGoalInput] = useState('');
   const [adminFilterSchool, setAdminFilterSchool] = useState<string>('all');
   const [schools, setSchools] = useState<any[]>([]);
+  const [totalAbsences, setTotalAbsences] = useState<number>(0);
+  const [nextEvent, setNextEvent] = useState<any | null>(null);
+  const [weeklyRanking, setWeeklyRanking] = useState<{ full_name: string; role: string; belt: string; count: number }[]>([]);
+  const [monthlyAwards, setMonthlyAwards] = useState<{ full_name: string; role: string; belt: string; count: number }[]>([]);
 
   useEffect(() => {
     if (profile) {
@@ -117,64 +121,89 @@ export default function Dashboard() {
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
+    const today = now.toISOString().split('T')[0];
 
-    // 1. Aulas da semana
-    const { count: weekCount } = await supabase
+    // --- Definir todas as queries (NÃO aguardar ainda) ---
+
+    // 1. Aulas da semana (Geral)
+    const qWeekClasses = supabase
       .from('class_bookings')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', profile.id)
       .gte('created_at', startOfWeek.toISOString());
 
     // 2. Próximas aulas marcadas
-    const { data: bookings } = await supabase
+    const qNextClasses = supabase
       .from('class_bookings')
-      .select(`
-                id,
-                status,
-                classes (
-                    id,
-                    title,
-                    date,
-                    start_time,
-                    end_time
-                )
-            `)
+      .select(`id, status, classes (id, title, date, start_time, end_time)`)
       .eq('user_id', profile.id)
       .eq('status', 'Marcado')
-      .gte('classes.date', now.toISOString().split('T')[0])
+      .gte('classes.date', today)
       .order('classes(date)', { ascending: true })
       .limit(3);
 
-    // 3. Extra stats for Admin/Professor
+    // Variáveis que receberão resultados
+    let weekCount = 0;
+    let bookings: any = [];
+    let schoolsData: any = null;
+    let attendanceData: any = null;
+    let todayClassesData: any = null;
+    let presentToday = 0;
+    let athleteCount = 0;
+    let absentData: any = null;
+    let monthCountAthlete = 0;
+    let monthCountProf = 0;
+    let faltasCount = 0;
+    let eventData: any = null;
+    let rankData: any = null;
+    let awardsData: any = null;
+    let lastPresence: any = null;
+
+    // --- Preparar promessas extras baseadas na Role ---
+    const promises: Promise<void>[] = [
+      (async () => {
+        const res = await qWeekClasses;
+        weekCount = res.count || 0;
+      })(),
+      (async () => {
+        const res = await qNextClasses;
+        bookings = res.data || [];
+      })()
+    ];
+
     if (profile.role !== 'Atleta') {
-      const today = now.toISOString().split('T')[0];
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(now.getDate() - 7);
       const sevenDaysAgoDate = sevenDaysAgo.toISOString().split('T')[0];
 
-      // Buscar escolas (para dropdown de filtro)
+      // Buscar escolas se não existirem
       if (schools.length === 0) {
-        const { data: schoolsData } = await supabase.from('schools').select('id, name').order('order_index').order('name');
-        if (schoolsData) setSchools(schoolsData);
+        promises.push(
+          (async () => {
+            const res = await supabase.from('schools').select('id, name').order('order_index').order('name');
+            schoolsData = res.data;
+          })()
+        );
       }
 
-      // Presenças dos últimos 7 dias — usando data da aula, não created_at
+      // Attendance
       let attendanceQuery = supabase
         .from('class_bookings')
         .select('classes!inner(date, school_id)')
         .eq('status', 'Presente')
         .gte('classes.date', sevenDaysAgoDate)
         .lte('classes.date', today);
-
       if (isProfessor(profile.role) && profile.school_id) {
         attendanceQuery = (attendanceQuery as any).eq('classes.school_id', profile.school_id);
       } else if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
         attendanceQuery = (attendanceQuery as any).eq('classes.school_id', adminFilterSchool);
       }
+      promises.push((async () => {
+        const res = await attendanceQuery;
+        attendanceData = res.data;
+      })());
 
-      const { data: attendanceData } = await attendanceQuery;
-
-      // Aulas de hoje
+      // Today Classes
       let todayQuery = supabase
         .from('classes')
         .select('id, title, start_time, end_time, class_bookings(count)')
@@ -184,9 +213,12 @@ export default function Dashboard() {
       } else if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
         todayQuery = todayQuery.eq('school_id', adminFilterSchool);
       }
-      const { data: todayClassesData } = await todayQuery.order('start_time', { ascending: true });
+      promises.push((async () => {
+        const res = await todayQuery.order('start_time', { ascending: true });
+        todayClassesData = res.data;
+      })());
 
-      // Total de presenças hoje — via class date
+      // Present Today
       let presentQuery = supabase
         .from('class_bookings')
         .select('classes!inner(date, school_id)', { count: 'exact', head: true })
@@ -197,9 +229,12 @@ export default function Dashboard() {
       } else if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
         presentQuery = (presentQuery as any).eq('classes.school_id', adminFilterSchool);
       }
-      const { count: presentToday } = await presentQuery;
+      promises.push((async () => {
+        const res = await presentQuery;
+        presentToday = res.count || 0;
+      })());
 
-      // Total de atletas
+      // Athlete Count
       let athleteQuery = supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
@@ -210,18 +245,131 @@ export default function Dashboard() {
       } else if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
         athleteQuery = athleteQuery.eq('school_id', adminFilterSchool);
       }
-      const { count: athleteCount } = await athleteQuery;
+      promises.push((async () => {
+        const res = await athleteQuery;
+        athleteCount = res.count || 0;
+      })());
 
-      // Atletas Inativos (Retenção)
-      const { data: absentData } = await supabase.rpc('get_absent_athletes', {
-        p_days: absentFilterDays,
-        p_requesting_user_id: profile.id,
-        p_requesting_role: profile.role,
-        p_requesting_school_id: profile.school_id
-      });
-      setAbsentAthletes(absentData || []);
+      // Absent Athletes
+      promises.push((async () => {
+        const res = await supabase.rpc('get_absent_athletes', {
+          p_days: absentFilterDays,
+          p_requesting_user_id: profile.id,
+          p_requesting_role: profile.role,
+          p_requesting_school_id: profile.role === 'Admin' ? (adminFilterSchool === 'all' ? null : adminFilterSchool) : profile.school_id
+        });
+        absentData = res.data;
+      })());
+    }
 
-      if (attendanceData) {
+    if (profile.role === 'Atleta') {
+      promises.push((async () => {
+        const res = await supabase.from('class_bookings').select('classes(date)')
+          .eq('user_id', profile.id).eq('status', 'Presente').order('classes(date)', { ascending: false }).limit(1);
+        lastPresence = res.data;
+      })());
+    }
+
+    const isAthleteOrProf = profile.role === 'Atleta' || isProfessor(profile.role);
+    if (isAthleteOrProf) {
+      const now2 = new Date();
+      const firstDayOfMonth = new Date(now2.getFullYear(), now2.getMonth(), 1).toISOString().split('T')[0];
+      const lastDayOfMonth = new Date(now2.getFullYear(), now2.getMonth() + 1, 0).toISOString().split('T')[0];
+
+      if (profile.role === 'Atleta') {
+        promises.push((async () => {
+          const res = await supabase.from('class_bookings').select('classes!inner(date)', { count: 'exact', head: true })
+            .eq('user_id', profile.id).eq('status', 'Presente').gte('classes.date', firstDayOfMonth).lte('classes.date', lastDayOfMonth);
+          monthCountAthlete = res.count || 0;
+        })());
+        promises.push((async () => {
+          const res = await supabase.from('class_bookings').select('*', { count: 'exact', head: true })
+            .eq('user_id', profile.id).eq('status', 'Falta');
+          faltasCount = res.count || 0;
+        })());
+      } else {
+         promises.push((async () => {
+          const res = await supabase.from('class_bookings').select('classes!inner(date)', { count: 'exact', head: true })
+            .eq('user_id', profile.id).eq('status', 'Presente').gte('classes.date', firstDayOfMonth).lte('classes.date', lastDayOfMonth);
+          monthCountProf = res.count || 0;
+        })());
+      }
+    }
+
+    // Eventos
+    let eventQuery = supabase.from('events').select('id, title, dates, school_id')
+      .gte('dates', `["${today}"]`).order('dates', { ascending: true }).limit(1);
+    if (profile.role !== 'Admin') eventQuery = eventQuery.or(`school_id.is.null,school_id.eq.${profile.school_id}`);
+    promises.push((async () => {
+      const res = await eventQuery.maybeSingle();
+      eventData = res.data;
+    })());
+
+    // Ranking Semanal
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+    
+    let rankingQuery = supabase.from('class_bookings')
+      .select('user_id, profiles!inner(full_name, role, belt, school_id, is_hidden), classes!inner(date, school_id)')
+      .eq('status', 'Presente')
+      .gte('classes.date', weekStart.toISOString().split('T')[0])
+      .lte('classes.date', weekEnd.toISOString().split('T')[0])
+      .eq('profiles.is_hidden', false);
+      
+    if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
+        rankingQuery = rankingQuery.eq('profiles.school_id', adminFilterSchool);
+    } else if (profile.role !== 'Admin' && profile.school_id) {
+        rankingQuery = rankingQuery.eq('profiles.school_id', profile.school_id);
+    }
+    promises.push((async () => {
+      const res = await rankingQuery;
+      rankData = res.data;
+    })());
+
+    const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonthStart = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), 1).toISOString().split('T')[0];
+    const prevMonthEnd = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1, 0).toISOString().split('T')[0];
+
+    // Premiação Mensal
+    let awardsQuery = supabase.from('class_bookings')
+      .select('user_id, profiles!inner(full_name, role, belt, school_id, is_hidden), classes!inner(date, school_id)')
+      .eq('status', 'Presente')
+      .gte('classes.date', prevMonthStart)
+      .lte('classes.date', prevMonthEnd)
+      .eq('profiles.is_hidden', false);
+
+    if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
+        awardsQuery = awardsQuery.eq('profiles.school_id', adminFilterSchool);
+    } else if (profile.role !== 'Admin' && profile.school_id) {
+        awardsQuery = awardsQuery.eq('profiles.school_id', profile.school_id);
+    }
+    promises.push((async () => {
+      const res = await awardsQuery;
+      awardsData = res.data;
+    })());
+
+    // --- AGUARDAR TODAS AS QUERIES EM PARALELO ---
+    await Promise.all(promises);
+
+    // --- Processar resultados de forma síncrona ---
+    
+    if (schoolsData) setSchools(schoolsData);
+
+    setStats(prev => ({
+      ...prev,
+      weekClasses: weekCount,
+      nextClasses: bookings?.map((b: any) => ({ ...b.classes, booking_id: b.id })).filter(Boolean) || []
+    }));
+
+    if (profile.role !== 'Atleta') {
+       if (absentData) setAbsentAthletes((absentData || []).filter((a: { is_hidden?: boolean }) => !a.is_hidden));
+       
+       let weeklyAttendance: { day: string; count: number }[] = [];
+       if (attendanceData) {
         const counts: Record<string, number> = {};
         for (let i = 6; i >= 0; i--) {
           const d = new Date();
@@ -232,80 +380,62 @@ export default function Dashboard() {
           const dateKey = b.classes?.date;
           if (dateKey && dateKey in counts) counts[dateKey]++;
         });
-        const weeklyAttendance = Object.entries(counts).map(([dateKey, count]) => ({
+        weeklyAttendance = Object.entries(counts).map(([dateKey, count]) => ({
           day: new Date(dateKey + 'T12:00:00').toLocaleDateString('pt-PT', { weekday: 'short' }),
           count
         }));
-        setStats(prev => ({
-          ...prev,
-          weeklyAttendance,
-          totalAthletes: athleteCount || 0,
-          todayClasses: todayClassesData || [],
-          totalPresent: presentToday || 0
-        }));
       }
+      setStats(prev => ({
+          ...prev,
+          weeklyAttendance: weeklyAttendance.length > 0 ? weeklyAttendance : prev.weeklyAttendance,
+          totalAthletes: athleteCount,
+          todayClasses: todayClassesData || [],
+          totalPresent: presentToday
+        }));
     }
 
-    setStats(prev => ({
-      ...prev,
-      weekClasses: weekCount || 0,
-      nextClasses: bookings?.map((b: any) => ({ ...b.classes, booking_id: b.id })).filter(Boolean) || []
-    }));
-
-    // Calcular dias sem treinar (apenas para Atletas)
     if (profile.role === 'Atleta') {
-      const { data: lastPresence } = await supabase
-        .from('class_bookings')
-        .select('classes(date)')
-        .eq('user_id', profile.id)
-        .eq('status', 'Presente')
-        .order('classes(date)', { ascending: false })
-        .limit(1);
-
       if (lastPresence && lastPresence.length > 0) {
         const lastDate = new Date((lastPresence[0] as any).classes?.date + 'T12:00:00');
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const diffMs = today.getTime() - lastDate.getTime();
-        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const todayZero = new Date();
+        todayZero.setHours(0, 0, 0, 0);
+        const diffDays = Math.floor((todayZero.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
         setDaysSinceLastTraining(diffDays);
-      } else {
-        setDaysSinceLastTraining(-1);
-      }
+      } else setDaysSinceLastTraining(-1);
     }
 
-    // Objetivo mensal — Atleta (frequentou) e Professor (lecionou)
-    const isAthleteOrProf = profile.role === 'Atleta' || isProfessor(profile.role);
     if (isAthleteOrProf) {
-      const now2 = new Date();
-      const firstDayOfMonth = new Date(now2.getFullYear(), now2.getMonth(), 1).toISOString().split('T')[0];
-      const lastDayOfMonth = new Date(now2.getFullYear(), now2.getMonth() + 1, 0).toISOString().split('T')[0];
-
-      if (profile.role === 'Atleta') {
-        // Aulas frequentadas este mês
-        const { count: monthCount } = await supabase
-          .from('class_bookings')
-          .select('classes!inner(date)', { count: 'exact', head: true })
-          .eq('user_id', profile.id)
-          .eq('status', 'Presente')
-          .gte('classes.date', firstDayOfMonth)
-          .lte('classes.date', lastDayOfMonth);
-        setMonthlyAttended(monthCount || 0);
-      } else {
-        // Aulas frequentadas este mês (professor também pode treinar)
-        const { count: monthCount } = await supabase
-          .from('class_bookings')
-          .select('classes!inner(date)', { count: 'exact', head: true })
-          .eq('user_id', profile.id)
-          .eq('status', 'Presente')
-          .gte('classes.date', firstDayOfMonth)
-          .lte('classes.date', lastDayOfMonth);
-        setMonthlyAttended(monthCount || 0);
-      }
-
-      setMonthlyGoal(profile.monthly_goal ?? null);
-      setGoalInput(profile.monthly_goal ? String(profile.monthly_goal) : '');
+       if (profile.role === 'Atleta') {
+         setMonthlyAttended(monthCountAthlete);
+         setTotalAbsences(faltasCount);
+       } else {
+         setMonthlyAttended(monthCountProf);
+       }
+       setMonthlyGoal(profile.monthly_goal ?? null);
+       setGoalInput(profile.monthly_goal ? String(profile.monthly_goal) : '');
     }
+
+    setNextEvent(eventData || null);
+
+    if (rankData) {
+      const counts: Record<string, { full_name: string; role: string; belt: string; count: number }> = {};
+      rankData.forEach((r: any) => {
+        const uid = r.user_id;
+        if (!counts[uid]) counts[uid] = { full_name: r.profiles.full_name, role: r.profiles.role, belt: r.profiles.belt, count: 0 };
+        counts[uid].count++;
+      });
+      setWeeklyRanking(Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 10));
+    } else setWeeklyRanking([]);
+
+    if (awardsData) {
+      const awardCounts: Record<string, { full_name: string; role: string; belt: string; count: number }> = {};
+      awardsData.forEach((r: any) => {
+        const uid = r.user_id;
+        if (!awardCounts[uid]) awardCounts[uid] = { full_name: r.profiles.full_name, role: r.profiles.role, belt: r.profiles.belt, count: 0 };
+        awardCounts[uid].count++;
+      });
+      setMonthlyAwards(Object.values(awardCounts).sort((a, b) => b.count - a.count).slice(0, 5));
+    } else setMonthlyAwards([]);
 
     setLoading(false);
   }
@@ -551,6 +681,64 @@ export default function Dashboard() {
             <a href="/checkin" style={{ display: 'block', marginTop: '1rem', fontSize: '0.8rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>→ Ir para Painel de Check-in</a>
           </div>
 
+          {/* Ranking Semanal */}
+          <div className="admin-card ranking-card">
+            <h3 className="admin-card-title">🏅 Ranking Semanal da Escola</h3>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1rem', marginTop: '-0.5rem' }}>
+              Top 10 presenças de seg a dom desta semana
+            </p>
+            {weeklyRanking.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Ainda sem presenças esta semana.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {weeklyRanking.map((r, idx) => {
+                  const maxCount = weeklyRanking[0].count;
+                  const pct = maxCount > 0 ? Math.max(6, Math.round((r.count / maxCount) * 100)) : 0;
+                  const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+                  return (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ width: '1.8rem', textAlign: 'center', fontSize: idx < 3 ? '1rem' : '0.75rem', color: idx < 3 ? 'white' : 'var(--text-muted)', flexShrink: 0 }}>{medal}</span>
+                      <span style={{ width: '7rem', fontSize: '0.78rem', color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{r.full_name}</span>
+                      <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: '9999px', height: '8px', overflow: 'hidden' }}>
+                        <div style={{ width: `${pct}%`, height: '100%', borderRadius: '9999px', background: idx === 0 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : idx === 1 ? 'linear-gradient(90deg, #9ca3af, #d1d5db)' : idx === 2 ? 'linear-gradient(90deg, #b45309, #d97706)' : 'linear-gradient(90deg, var(--primary), #34d399)', transition: 'width 0.5s ease' }} />
+                      </div>
+                      <span style={{ width: '1.5rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 700, color: idx === 0 ? '#fbbf24' : 'white', flexShrink: 0 }}>{r.count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Premiação Mensal */}
+          {monthlyAwards.length > 0 && (() => {
+            const prevMonthName = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)
+              .toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+            const stars = ['⭐⭐⭐⭐⭐', '⭐⭐⭐⭐', '⭐⭐⭐', '⭐⭐', '⭐'];
+            const starLabels = ['1º lugar', '2º lugar', '3º lugar', '4º lugar', '5º lugar'];
+            return (
+              <div className="admin-card">
+                <h3 className="admin-card-title">🏆 Premiação — {prevMonthName.charAt(0).toUpperCase() + prevMonthName.slice(1)}</h3>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1rem', marginTop: '-0.5rem' }}>Mais presenças do mês anterior</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  {monthlyAwards.map((a, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', background: idx === 0 ? 'rgba(245,158,11,0.1)' : idx === 1 ? 'rgba(156,163,175,0.08)' : 'rgba(255,255,255,0.04)', border: `1px solid ${idx === 0 ? 'rgba(245,158,11,0.3)' : idx === 1 ? 'rgba(156,163,175,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
+                      <div style={{ textAlign: 'center', minWidth: '3.5rem' }}>
+                        <div style={{ fontSize: '0.9rem', lineHeight: 1 }}>{stars[idx]}</div>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>{starLabels[idx]}</div>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'white' }}>{a.full_name}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{a.role} • {a.belt}</div>
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: '1.1rem', color: idx === 0 ? '#fbbf24' : 'var(--text-muted)' }}>{a.count} 🥋</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Retenção de Alunos (Inativos) */}
           <div className="admin-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
@@ -682,6 +870,20 @@ export default function Dashboard() {
             <p className="stat-value">{loading ? '...' : stats.weekClasses}</p>
           </div>
         </div>
+        {(profile.role === 'Atleta' || isProfessor(profile.role)) && (
+            <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
+              <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '1rem', borderRadius: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                 <span style={{ fontSize: '1.5rem' }}>⚠️</span>
+              </div>
+              <div className="stat-content" style={{ marginLeft: '1rem' }}>
+                <h3>Faltas Acumuladas</h3>
+                <p className="stat-value">{totalAbsences}</p>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    {totalAbsences > 0 ? `Falta(m) ${3 - (totalAbsences % 3)} para penalização` : 'A Cada 3 = -1 Presença'}
+                </p>
+              </div>
+            </div>
+        )}
       </div>
 
       {/* Card: Objetivo Mensal (Atletas e Professores) */}
@@ -748,6 +950,62 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Ranking Semanal da Escola (todos os utilizadores) */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '1rem', padding: '1.25rem', marginBottom: '1.25rem' }}>
+        <h3 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 700 }}>🏅 Ranking Semanal da Escola</h3>
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1rem', marginTop: '0.1rem' }}>Top 10 presenças de seg a dom desta semana</p>
+        {weeklyRanking.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Ainda sem presenças esta semana.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {weeklyRanking.map((r, idx) => {
+              const maxCount = weeklyRanking[0].count;
+              const pct = maxCount > 0 ? Math.max(6, Math.round((r.count / maxCount) * 100)) : 0;
+              const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+              return (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ width: '1.8rem', textAlign: 'center', fontSize: idx < 3 ? '1rem' : '0.75rem', color: idx < 3 ? 'white' : 'var(--text-muted)', flexShrink: 0 }}>{medal}</span>
+                  <span style={{ width: '7rem', fontSize: '0.78rem', color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{r.full_name}</span>
+                  <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: '9999px', height: '8px', overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', borderRadius: '9999px', background: idx === 0 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : idx === 1 ? 'linear-gradient(90deg, #9ca3af, #d1d5db)' : idx === 2 ? 'linear-gradient(90deg, #b45309, #d97706)' : 'linear-gradient(90deg, var(--primary), #34d399)', transition: 'width 0.5s ease' }} />
+                  </div>
+                  <span style={{ width: '1.5rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 700, color: idx === 0 ? '#fbbf24' : 'white', flexShrink: 0 }}>{r.count}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Premiação Mensal (todos os utilizadores) */}
+      {monthlyAwards.length > 0 && (() => {
+        const prevMonthName = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)
+          .toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+        const stars = ['⭐⭐⭐⭐⭐', '⭐⭐⭐⭐', '⭐⭐⭐', '⭐⭐', '⭐'];
+        const starLabels = ['1º lugar', '2º lugar', '3º lugar', '4º lugar', '5º lugar'];
+        return (
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '1rem', padding: '1.25rem', marginBottom: '1.25rem' }}>
+            <h3 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 700 }}>🏆 Premiação — {prevMonthName.charAt(0).toUpperCase() + prevMonthName.slice(1)}</h3>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1rem', marginTop: '0.1rem' }}>Mais presenças do mês anterior</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              {monthlyAwards.map((a, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', background: idx === 0 ? 'rgba(245,158,11,0.1)' : idx === 1 ? 'rgba(156,163,175,0.08)' : 'rgba(255,255,255,0.04)', border: `1px solid ${idx === 0 ? 'rgba(245,158,11,0.3)' : idx === 1 ? 'rgba(156,163,175,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
+                  <div style={{ textAlign: 'center', minWidth: '3.5rem' }}>
+                    <div style={{ fontSize: '0.9rem', lineHeight: 1 }}>{stars[idx]}</div>
+                    <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>{starLabels[idx]}</div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'white' }}>{a.full_name}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{a.role} • {a.belt}</div>
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: '1.1rem', color: idx === 0 ? '#fbbf24' : 'var(--text-muted)' }}>{a.count} 🥋</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Contador de dias sem treinar */}
       {!loading && profile.role === 'Atleta' && daysSinceLastTraining !== null && (
         <div style={{
@@ -784,6 +1042,37 @@ export default function Dashboard() {
 
       <div className="dashboard-grid">
         <div className="progression-column">
+          {/* Próximo Evento (se houver) */}
+          {nextEvent && (
+            <div className="progression-card next-event-card" style={{ marginBottom: '1.5rem', background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+              <div className="progression-header">
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1rem', color: '#9ca3af', fontWeight: 600 }}>Próximo Evento</h3>
+                  <h4 style={{ margin: '0.2rem 0 0', fontSize: '1.25rem', color: 'white', fontWeight: 700 }}>{nextEvent.title}</h4>
+                </div>
+                <span style={{ fontSize: '1.75rem' }}>📅</span>
+              </div>
+              <div style={{ marginTop: '1rem' }}>
+                <div style={{ fontSize: '1.1rem', color: '#60a5fa', marginBottom: '1rem' }}>
+                  {(() => {
+                    const eventDate = new Date(nextEvent.dates[0]);
+                    const today = new Date();
+                    today.setHours(0,0,0,0);
+                    const diffTime = eventDate.getTime() - today.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    if (diffDays === 0) return <strong>É hoje!</strong>;
+                    if (diffDays === 1) return <strong>Amanhã</strong>;
+                    return <span>Faltam <strong>{diffDays}</strong> dias</span>;
+                  })()}
+                </div>
+                <Link to="/eventos" className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                  Ver Eventos
+                </Link>
+              </div>
+            </div>
+          )}
+
           <div className="progression-card">
             <div className="progression-header">
               <div>

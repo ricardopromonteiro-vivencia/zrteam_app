@@ -108,21 +108,34 @@ export default function CheckIn() {
         }
     };
 
-    // Penalização: marcar "Falta" e deduzir 1 aula a quem não apareceu
+    // Penalização: marcar "Falta" e deduzir 1 aula a quem atingiu a 3ª, 6ª, 9ª falta...
     const handlePenalize = async () => {
         if (!selectedClass) return;
-        if (!confirm('Vais penalizar todos os "Marcado" desta aula (descontar 1 presença). Confirmas?')) return;
+        if (!confirm('Vais marcar "Falta" a todos os que não compareceram. À 3ª falta acumulada, é descontada uma aula. Confirmas?')) return;
 
         const noShows = bookings.filter(b => b.status === 'Marcado');
+        let penalties = 0;
 
         for (const booking of noShows) {
             // Marcar como Falta
-            await supabase.from('class_bookings').update({ status: 'Falta' }).eq('id', booking.id);
-            // Deduzir 1 presença (não vai abaixo de 0)
-            await supabase.rpc('decrement_attended_classes', { user_id_param: booking.user_id.id });
+            const { error: updateError } = await supabase.from('class_bookings').update({ status: 'Falta' }).eq('id', booking.id);
+            
+            if (!updateError) {
+                // Verificar total de Faltas
+                const { count } = await supabase
+                    .from('class_bookings')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', booking.user_id.id)
+                    .eq('status', 'Falta');
+                    
+                if (count && count > 0 && count % 3 === 0) {
+                    await supabase.rpc('decrement_attended_classes', { user_id_param: booking.user_id.id });
+                    penalties++;
+                }
+            }
         }
 
-        alert(`${noShows.length} atleta(s) penalizado(s).`);
+        alert(`${noShows.length} falta(s) registada(s). ${penalties > 0 ? `\n⚠️ ${penalties} penalização(ões) aplicada(s) (perderam 1 aula).` : ''}`);
         loadBookings(selectedClass);
     };
 
