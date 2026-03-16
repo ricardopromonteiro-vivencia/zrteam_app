@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import {
   LogOut, Home, Calendar, Users, Activity, Settings,
   ShieldCheck, Menu, X, Building2, HelpCircle, Download, CreditCard, Megaphone, UserCheck,
-  Bell, BellOff, CalendarDays, Folder
+  Bell, BellOff, CalendarDays, Folder, ListChecks
 } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { usePushNotifications } from '../hooks/usePushNotifications';
@@ -209,6 +209,7 @@ export default function Layout() {
       ...(profile?.role === 'Admin' ? [{ name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 }] : []),
       { name: 'Pagamentos', path: '/admin/pagamentos', icon: CreditCard },
       { name: 'Check-in', path: '/admin/checkin', icon: ShieldCheck },
+      { name: 'Marcações', path: profile?.role === 'Admin' ? '/admin/marcacoes' : '/marcacoes', icon: ListChecks },
       { name: 'Validações', path: '/admin/validacoes', icon: UserCheck, badge: pendingValidations > 0 },
       { name: 'Documentos', path: '/documentos', icon: Folder },
       { name: 'Definições', path: '/settings', icon: Settings },

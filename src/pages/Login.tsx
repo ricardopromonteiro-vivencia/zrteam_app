@@ -66,6 +66,11 @@ export default function Login() {
                 const { error } = await supabase.auth.signInWithPassword({ email, password });
                 if (error) throw error;
             } else if (mode === 'register') {
+                if (!email || !password || !fullName || !schoolId || !dateOfBirth || !belt || !degrees || !professorId) {
+                    setError('Por favor, preenche todos os campos obrigatórios antes de registar.');
+                    setLoading(false);
+                    return;
+                }
                 if (!acceptedTerms) {
                     setError('Deves aceitar os Termos e Condições para continuar.');
                     setLoading(false);

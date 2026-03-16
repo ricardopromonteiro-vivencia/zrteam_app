@@ -20,6 +20,7 @@ import ResetPassword from './pages/ResetPassword';
 import Validations from './pages/Validations';
 import Events from './pages/Events';
 import Documents from './pages/Documents';
+import Attendances from './pages/Attendances';
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -97,6 +98,8 @@ function App() {
           <Route path="/validacoes" element={<Validations />} />
           <Route path="/eventos" element={<Events />} />
           <Route path="/documentos" element={<Documents />} />
+          <Route path="/marcacoes" element={<Attendances />} />
+          <Route path="/admin/marcacoes" element={<Attendances />} />
         </Route>
       </Routes>
     </Router>
