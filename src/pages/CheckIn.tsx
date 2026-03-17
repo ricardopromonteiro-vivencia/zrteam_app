@@ -58,7 +58,6 @@ export default function CheckIn() {
         let athleteQuery = supabase
             .from('profiles')
             .select('id, full_name, belt, degrees, school_id')
-            .eq('role', 'Atleta')
             .eq('is_archived', false)
             .neq('is_hidden', true)
             .order('full_name');
