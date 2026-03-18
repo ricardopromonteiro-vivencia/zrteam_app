@@ -486,5 +486,5 @@ SELECT cron.schedule(
 
 -- ==============================================================================
 -- FIM DO SCRIPT
--- ZR Team App — Estrutura completa e funcional ✅
+-- ZR Team App — Estrutura completa e funcional mas não definitiva ✅
 -- ==============================================================================

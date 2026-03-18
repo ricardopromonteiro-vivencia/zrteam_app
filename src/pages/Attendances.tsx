@@ -290,6 +290,10 @@ export default function Attendances() {
                     border-radius: 0.5rem;
                     min-width: 150px;
                 }
+                .filter-select option {
+                    background-color: var(--bg-card);
+                    color: var(--text-main);
+                }
                 .refresh-btn {
                     background: var(--bg-dark);
                     border: 1px solid var(--border);
@@ -440,6 +444,12 @@ export default function Attendances() {
                 .status-select:focus {
                     outline: none;
                     border-color: rgba(255,255,255,0.2);
+                }
+                .status-select option {
+                    background-color: var(--bg-card);
+                    color: var(--text-main);
+                    font-weight: 500;
+                    text-transform: none;
                 }
                 
                 /* Custom styles based on selected value using classNames */
