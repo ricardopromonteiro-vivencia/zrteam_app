@@ -76,6 +76,20 @@ export default function Login() {
                     setLoading(false);
                     return;
                 }
+                // Verificação de duplicados (Nome + Data Nascimento)
+                const { data: existingUser } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('full_name', fullName)
+                    .eq('date_of_birth', dateOfBirth)
+                    .maybeSingle();
+
+                if (existingUser) {
+                    setError('Já existe um utilizador registado com este nome e data de nascimento. Se já tens conta, tenta fazer login ou recuperar a palavra-passe.');
+                    setLoading(false);
+                    return;
+                }
+
                 const { error } = await supabase.auth.signUp({
                     email,
                     password,
@@ -196,7 +210,7 @@ export default function Login() {
                                 id="fullName"
                                 type="text"
                                 className="form-input"
-                                placeholder="Ex: João Silva"
+                                placeholder="Ex: João Manuel dos Santos Silva"
                                 value={fullName}
                                 onChange={(e) => setFullName(e.target.value)}
                                 required
