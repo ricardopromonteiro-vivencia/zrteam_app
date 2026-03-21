@@ -210,7 +210,7 @@ export default function Layout() {
       { name: 'Pagamentos', path: '/admin/pagamentos', icon: CreditCard },
       { name: 'Check-in', path: '/admin/checkin', icon: ShieldCheck },
       { name: 'Marcações', path: profile?.role === 'Admin' ? '/admin/marcacoes' : '/marcacoes', icon: ListChecks },
-      { name: 'Validações', path: '/admin/validacoes', icon: UserCheck, badge: pendingValidations > 0 },
+      ...((profile?.role === 'Admin' || profile?.school?.head_professor_id === profile?.id) ? [{ name: 'Validações', path: '/admin/validacoes', icon: UserCheck, badge: pendingValidations > 0 }] : []),
       { name: 'Documentos', path: '/documentos', icon: Folder },
       { name: 'Definições', path: '/settings', icon: Settings },
     ];

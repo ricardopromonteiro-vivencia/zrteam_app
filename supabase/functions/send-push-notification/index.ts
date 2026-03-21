@@ -63,13 +63,16 @@ Deno.serve(async (req) => {
             if (error) console.error('[push] Erro ao buscar subs (user_id):', error.message);
             subscriptions = data || [];
         } else if (target?.school_id) {
-            // Notificar TODOS os utilizadores dessa escola (atletas + profesores + admin)
-            const { data: members } = await supabase
+            // Notificar APENAS os gestores da escola (Admin e Professor Responsável)
+            const { data: managers } = await supabase
                 .from('profiles')
                 .select('id')
-                .eq('school_id', target.school_id);
-            const ids = (members || []).map((p: any) => p.id);
-            console.log('[push] membros da escola:', ids.length);
+                .eq('school_id', target.school_id)
+                .in('role', ['Admin', 'Professor Responsável']);
+            
+            const ids = (managers || []).map((p: any) => p.id);
+            console.log('[push] gestores da escola encontrados:', ids.length);
+            
             if (ids.length > 0) {
                 const { data, error } = await supabase
                     .from('push_subscriptions')
