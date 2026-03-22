@@ -451,7 +451,7 @@ export default function Dashboard() {
         bronze: String(profile.medals_bronze || 0)
       });
     }
-  }, [profile, absentFilterDays, adminFilterSchool]);
+  }, [profile, absentFilterDays, adminFilterSchool, fetchDashboardData, checkRecurringClasses]);
 
   const exportHistoryPDF = async () => {
     setLoading(true);
@@ -667,6 +667,80 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* Card: Quadro de Medalhas (Pessoal para Professor/Admin) */}
+        {!loading && (
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: '1rem', padding: '1.25rem', marginBottom: '1.5rem'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <span style={{ fontWeight: 700, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                🏆 O Meu Quadro de Medalhas
+              </span>
+              <button
+                onClick={() => {
+                  if (editingMedals) {
+                    handleSaveMedals();
+                  } else {
+                    setEditingMedals(true);
+                  }
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem' }}
+              >
+                {editingMedals ? <span style={{ color: 'var(--primary)', fontWeight: 700 }}>Guardar</span> : <><Edit2 size={13} /> Editar</>}
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+              <div style={{ textAlign: 'center', padding: '0.75rem', borderRadius: '0.75rem', background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.1)' }}>
+                <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🥇</div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.25rem' }}>Ouro</div>
+                {editingMedals ? (
+                  <input
+                    type="number" min="0" value={medalInputs.gold}
+                    onChange={e => setMedalInputs(prev => ({ ...prev, gold: e.target.value }))}
+                    style={{ width: '100%', textAlign: 'center', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'white', borderRadius: '0.3rem', fontSize: '1rem', fontWeight: 800 }}
+                  />
+                ) : (
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f59e0b' }}>{medals.gold}</div>
+                )}
+              </div>
+              <div style={{ textAlign: 'center', padding: '0.75rem', borderRadius: '0.75rem', background: 'rgba(156,163,175,0.05)', border: '1px solid rgba(156,163,175,0.1)' }}>
+                <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🥈</div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.25rem' }}>Prata</div>
+                {editingMedals ? (
+                  <input
+                    type="number" min="0" value={medalInputs.silver}
+                    onChange={e => setMedalInputs(prev => ({ ...prev, silver: e.target.value }))}
+                    style={{ width: '100%', textAlign: 'center', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'white', borderRadius: '0.3rem', fontSize: '1rem', fontWeight: 800 }}
+                  />
+                ) : (
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#9ca3af' }}>{medals.silver}</div>
+                )}
+              </div>
+              <div style={{ textAlign: 'center', padding: '0.75rem', borderRadius: '0.75rem', background: 'rgba(180,83,9,0.05)', border: '1px solid rgba(180,83,9,0.1)' }}>
+                <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🥉</div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.25rem' }}>Bronze</div>
+                {editingMedals ? (
+                  <input
+                    type="number" min="0" value={medalInputs.bronze}
+                    onChange={e => setMedalInputs(prev => ({ ...prev, bronze: e.target.value }))}
+                    style={{ width: '100%', textAlign: 'center', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'white', borderRadius: '0.3rem', fontSize: '1rem', fontWeight: 800 }}
+                  />
+                ) : (
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#b45309' }}>{medals.bronze}</div>
+                )}
+              </div>
+            </div>
+            {editingMedals && (
+              <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+                <button onClick={handleSaveMedals} className="btn-primary" style={{ flex: 1, fontSize: '0.8rem', padding: '0.4rem' }}>Guardar Alterações</button>
+                <button onClick={() => { setEditingMedals(false); setMedalInputs({ gold: String(medals.gold), silver: String(medals.silver), bronze: String(medals.bronze) }); }} className="btn-secondary" style={{ flex: 1, fontSize: '0.8rem', padding: '0.4rem' }}>Cancelar</button>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="admin-dashboard-grid">
           {/* Chart — barras horizontais */}
