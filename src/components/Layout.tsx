@@ -54,7 +54,7 @@ export default function Layout() {
 
       let { data, error } = await supabase
         .from('profiles')
-        .select('*, school:schools!school_id(name, head_professor_id), assigned_professor:profiles!assigned_professor_id(full_name)')
+        .select('*, school:schools!school_id(name, head_professor_id, payment_management_enabled), assigned_professor:profiles!assigned_professor_id(full_name)')
         .eq('id', session.user.id)
         .single();
 
@@ -207,7 +207,7 @@ export default function Layout() {
       { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
       { name: 'Atletas', path: '/admin/atletas', icon: Users },
       ...(profile?.role === 'Admin' ? [{ name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 }] : []),
-      { name: 'Pagamentos', path: '/admin/pagamentos', icon: CreditCard },
+      ...((profile?.role === 'Admin' || (isProfessor(profile?.role) && profile?.school?.payment_management_enabled !== false)) ? [{ name: 'Pagamentos', path: '/admin/pagamentos', icon: CreditCard }] : []),
       { name: 'Check-in', path: '/admin/checkin', icon: ShieldCheck },
       { name: 'Marcações', path: profile?.role === 'Admin' ? '/admin/marcacoes' : '/marcacoes', icon: ListChecks },
       ...((profile?.role === 'Admin' || profile?.school?.head_professor_id === profile?.id) ? [{ name: 'Validações', path: '/admin/validacoes', icon: UserCheck, badge: pendingValidations > 0 }] : []),

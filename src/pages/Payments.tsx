@@ -35,7 +35,7 @@ export default function Payments() {
         setLoading(true);
 
         if (isAdmin) {
-            const { data: schoolsData } = await supabase.from('schools').select('id, name').order('order_index', { ascending: true }).order('name');
+            const { data: schoolsData } = await supabase.from('schools').select('id, name, payment_management_enabled').order('order_index', { ascending: true }).order('name');
             if (schoolsData) setSchools(schoolsData);
         }
 
@@ -112,6 +112,19 @@ export default function Payments() {
 
     if (!isAdmin && !isProfessor) return <div className="p-8 text-danger">Acesso restrito.</div>;
 
+    // Se for professor e a escola tiver gestão desativada
+    if (!isAdmin && isProfessor && profile?.school?.payment_management_enabled === false) {
+        return (
+            <div style={{ padding: '3rem', textAlign: 'center', background: 'var(--bg-card)', borderRadius: '1rem', border: '1px solid var(--border)', margin: '2rem auto', maxWidth: '600px' }}>
+                <CreditCard size={48} style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }} />
+                <h2 style={{ color: 'white', marginBottom: '1rem' }}>Gestão de Pagamentos Desativada</h2>
+                <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                    A tua escola tem a gestão de pagamentos por plataforma desativada, pois utiliza um sistema de pagamento automático externo.
+                </p>
+            </div>
+        );
+    }
+
     return (
         <div className="payments-page animate-fade-in">
             <div className="page-header">
@@ -148,7 +161,11 @@ export default function Payments() {
                         onChange={e => setSelectedSchool(e.target.value)}
                     >
                         <option value="all">🏫 Todas as Escolas</option>
-                        {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        {schools.map(s => (
+                            <option key={s.id} value={s.id}>
+                                {s.name} {s.payment_management_enabled === false ? '(Sem gestão)' : ''}
+                            </option>
+                        ))}
                     </select>
                 )}
                 <div className="search-panel">

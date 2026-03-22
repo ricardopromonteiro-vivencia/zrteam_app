@@ -60,7 +60,8 @@ export default function Schools() {
         const schoolData = {
             name: editingSchool.name,
             head_professor_id: editingSchool.head_professor_id || null,
-            order_index: editingSchool.order_index ? parseInt(editingSchool.order_index, 10) : 99
+            order_index: editingSchool.order_index ? parseInt(editingSchool.order_index, 10) : 99,
+            payment_management_enabled: editingSchool.payment_management_enabled ?? true
         };
 
         let error;
@@ -93,7 +94,7 @@ export default function Schools() {
                     <h1 className="page-title">Gestão de Escolas</h1>
                     <p className="page-subtitle">Gere as academias ZR Team e os professores responsáveis.</p>
                 </div>
-                <button className="btn-primary" onClick={() => setEditingSchool({ name: '', head_professor_id: '' })}>
+                <button className="btn-primary" onClick={() => setEditingSchool({ name: '', head_professor_id: '', payment_management_enabled: true })}>
                     <Plus size={20} /> Nova Escola
                 </button>
             </header>
@@ -115,6 +116,17 @@ export default function Schools() {
                             <p>
                                 <span style={{ fontSize: '0.75rem', background: 'var(--border)', padding: '2px 6px', borderRadius: '4px' }}>
                                     Prioridade: {school.order_index ?? 99}
+                                </span>
+                                <span style={{ 
+                                    fontSize: '0.75rem', 
+                                    marginLeft: '0.5rem',
+                                    background: school.payment_management_enabled !== false ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
+                                    color: school.payment_management_enabled !== false ? 'var(--primary)' : 'var(--danger)',
+                                    padding: '2px 6px', 
+                                    borderRadius: '4px',
+                                    border: `1px solid ${school.payment_management_enabled !== false ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                                }}>
+                                    {school.payment_management_enabled !== false ? 'Pagamentos ON' : 'Pagamentos OFF'}
                                 </span>
                             </p>
                         </div>
@@ -184,6 +196,23 @@ export default function Schools() {
                                     ))}
                                 </select>
                             </div>
+
+                            <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                                <input
+                                    type="checkbox"
+                                    id="payment_management_enabled"
+                                    checked={editingSchool.payment_management_enabled ?? true}
+                                    onChange={e => setEditingSchool({ ...editingSchool, payment_management_enabled: e.target.checked })}
+                                    style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }}
+                                />
+                                <label htmlFor="payment_management_enabled" className="form-label" style={{ margin: 0, cursor: 'pointer', color: 'white' }}>
+                                    Ativar Gestão de Pagamentos
+                                </label>
+                            </div>
+
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '-0.5rem', lineHeight: '1.4' }}>
+                                Se desativado, esta escola não terá controlo de mensalidades e notificações automáticas de pagamento.
+                            </p>
 
                             <div className="modal-actions">
                                 <button type="button" className="btn-secondary" onClick={() => setEditingSchool(null)}>Cancelar</button>
