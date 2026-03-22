@@ -298,6 +298,79 @@ export default function Settings() {
                     </form>
                 </div>
 
+                <div className="settings-card">
+                    <div className="card-header">
+                        <User className="text-primary" />
+                        <h2>As Minhas Medalhas</h2>
+                    </div>
+                    <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+                        Regista as tuas conquistas no tatame.
+                    </p>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                        <div style={{ textAlign: 'center', padding: '1rem', borderRadius: '0.75rem', background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.1)' }}>
+                            <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>🥇</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.5rem' }}>Ouro</div>
+                            <input
+                                type="number" min="0"
+                                className="form-input"
+                                style={{ textAlign: 'center', fontSize: '1.25rem', fontWeight: 800 }}
+                                value={editForm.medals_gold ?? profile.medals_gold ?? 0}
+                                onChange={e => setEditForm((f: any) => ({ ...f, medals_gold: parseInt(e.target.value) || 0 }))}
+                            />
+                        </div>
+                        <div style={{ textAlign: 'center', padding: '1rem', borderRadius: '0.75rem', background: 'rgba(156,163,175,0.05)', border: '1px solid rgba(156,163,175,0.1)' }}>
+                            <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>🥈</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.5rem' }}>Prata</div>
+                            <input
+                                type="number" min="0"
+                                className="form-input"
+                                style={{ textAlign: 'center', fontSize: '1.25rem', fontWeight: 800 }}
+                                value={editForm.medals_silver ?? profile.medals_silver ?? 0}
+                                onChange={e => setEditForm((f: any) => ({ ...f, medals_silver: parseInt(e.target.value) || 0 }))}
+                            />
+                        </div>
+                        <div style={{ textAlign: 'center', padding: '1rem', borderRadius: '0.75rem', background: 'rgba(180,83,9,0.05)', border: '1px solid rgba(180,83,9,0.1)' }}>
+                            <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>🥉</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.5rem' }}>Bronze</div>
+                            <input
+                                type="number" min="0"
+                                className="form-input"
+                                style={{ textAlign: 'center', fontSize: '1.25rem', fontWeight: 800 }}
+                                value={editForm.medals_bronze ?? profile.medals_bronze ?? 0}
+                                onChange={e => setEditForm((f: any) => ({ ...f, medals_bronze: parseInt(e.target.value) || 0 }))}
+                            />
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={async () => {
+                            setLoading(true);
+                            const { error } = await supabase
+                                .from('profiles')
+                                .update({
+                                    medals_gold: editForm.medals_gold ?? profile.medals_gold ?? 0,
+                                    medals_silver: editForm.medals_silver ?? profile.medals_silver ?? 0,
+                                    medals_bronze: editForm.medals_bronze ?? profile.medals_bronze ?? 0
+                                })
+                                .eq('id', profile.id);
+                            
+                            if (!error) {
+                                setMessage({ type: 'success', text: 'Medalhas atualizadas!' });
+                                window.location.reload();
+                            } else {
+                                setMessage({ type: 'error', text: 'Erro ao guardar medalhas.' });
+                            }
+                            setLoading(false);
+                            setTimeout(() => setMessage(null), 3000);
+                        }}
+                        className="btn-primary w-full"
+                        disabled={loading}
+                    >
+                        {loading ? 'A guardar...' : 'Guardar Medalhas'}
+                    </button>
+                </div>
+
                 <div className="settings-card danger-zone">
                     <div className="card-header">
                         <AlertTriangle className="text-danger" />

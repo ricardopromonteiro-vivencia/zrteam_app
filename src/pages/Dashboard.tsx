@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { Activity, Calendar, Clock, ExternalLink, Download, Edit2, Target } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -51,15 +51,11 @@ export default function Dashboard() {
   const [nextEvent, setNextEvent] = useState<any | null>(null);
   const [weeklyRanking, setWeeklyRanking] = useState<{ full_name: string; role: string; belt: string; count: number }[]>([]);
   const [monthlyAwards, setMonthlyAwards] = useState<{ full_name: string; role: string; belt: string; count: number }[]>([]);
+  const [medals, setMedals] = useState({ gold: 0, silver: 0, bronze: 0 });
+  const [editingMedals, setEditingMedals] = useState(false);
+  const [medalInputs, setMedalInputs] = useState({ gold: '0', silver: '0', bronze: '0' });
 
-  useEffect(() => {
-    if (profile) {
-      fetchDashboardData();
-      checkRecurringClasses();
-    }
-  }, [profile, absentFilterDays, adminFilterSchool]);
-
-  async function checkRecurringClasses() {
+  const checkRecurringClasses = useCallback(async () => {
     if (profile.role === 'Atleta') return;
 
     // Buscar aulas recorrentes do passado recente (até 7 dias atrás)
@@ -113,9 +109,9 @@ export default function Dashboard() {
         }]);
       }
     }
-  }
+  }, [profile.role, profile.school_id]);
 
-  async function fetchDashboardData() {
+  const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     const now = new Date();
     const startOfWeek = new Date(now);
@@ -438,7 +434,24 @@ export default function Dashboard() {
     } else setMonthlyAwards([]);
 
     setLoading(false);
-  }
+  }, [profile, absentFilterDays, adminFilterSchool, schools.length]);
+
+  useEffect(() => {
+    if (profile) {
+      fetchDashboardData();
+      checkRecurringClasses();
+      setMedals({
+        gold: profile.medals_gold || 0,
+        silver: profile.medals_silver || 0,
+        bronze: profile.medals_bronze || 0
+      });
+      setMedalInputs({
+        gold: String(profile.medals_gold || 0),
+        silver: String(profile.medals_silver || 0),
+        bronze: String(profile.medals_bronze || 0)
+      });
+    }
+  }, [profile, absentFilterDays, adminFilterSchool]);
 
   const exportHistoryPDF = async () => {
     setLoading(true);
@@ -531,6 +544,26 @@ export default function Dashboard() {
     setMonthlyGoal(null);
     setGoalInput('');
     setEditingGoal(false);
+  };
+
+  const handleSaveMedals = async () => {
+    const gold = parseInt(medalInputs.gold, 10) || 0;
+    const silver = parseInt(medalInputs.silver, 10) || 0;
+    const bronze = parseInt(medalInputs.bronze, 10) || 0;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        medals_gold: gold,
+        medals_silver: silver,
+        medals_bronze: bronze
+      })
+      .eq('id', profile.id);
+
+    if (!error) {
+      setMedals({ gold, silver, bronze });
+      setEditingMedals(false);
+    }
   };
 
   if (!profile) return null;
@@ -947,6 +980,96 @@ export default function Dashboard() {
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* Card: Quadro de Medalhas (Pessoal) */}
+      {!loading && (
+        <div style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          borderRadius: '0.75rem', padding: '1rem 1.25rem', marginBottom: '1rem'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <span style={{ fontWeight: 700, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              🏆 O Meu Quadro de Medalhas
+            </span>
+            <button
+              onClick={() => {
+                if (editingMedals) {
+                  handleSaveMedals();
+                } else {
+                  setEditingMedals(true);
+                  setMedalInputs({
+                    gold: String(medals.gold),
+                    silver: String(medals.silver),
+                    bronze: String(medals.bronze)
+                  });
+                }
+              }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', fontWeight: 600 }}
+            >
+              {editingMedals ? (
+                <>✔️ Guardar</>
+              ) : (
+                <><Edit2 size={13} /> Editar Medalhas</>
+              )}
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+            <div style={{ textAlign: 'center', padding: '0.75rem', borderRadius: '0.5rem', background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.1)' }}>
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🥇</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.5rem' }}>Ouro</div>
+              {editingMedals ? (
+                <input
+                  type="number" min="0"
+                  value={medalInputs.gold}
+                  onChange={e => setMedalInputs(prev => ({ ...prev, gold: e.target.value }))}
+                  style={{ width: '100%', textAlign: 'center', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: '0.4rem', color: 'white', padding: '0.2rem' }}
+                />
+              ) : (
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fbbf24' }}>{medals.gold}</div>
+              )}
+            </div>
+
+            <div style={{ textAlign: 'center', padding: '0.75rem', borderRadius: '0.5rem', background: 'rgba(156,163,175,0.05)', border: '1px solid rgba(156,163,175,0.1)' }}>
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🥈</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.5rem' }}>Prata</div>
+              {editingMedals ? (
+                <input
+                  type="number" min="0"
+                  value={medalInputs.silver}
+                  onChange={e => setMedalInputs(prev => ({ ...prev, silver: e.target.value }))}
+                  style={{ width: '100%', textAlign: 'center', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: '0.4rem', color: 'white', padding: '0.2rem' }}
+                />
+              ) : (
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#d1d5db' }}>{medals.silver}</div>
+              )}
+            </div>
+
+            <div style={{ textAlign: 'center', padding: '0.75rem', borderRadius: '0.5rem', background: 'rgba(180,83,9,0.05)', border: '1px solid rgba(180,83,9,0.1)' }}>
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🥉</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.5rem' }}>Bronze</div>
+              {editingMedals ? (
+                <input
+                  type="number" min="0"
+                  value={medalInputs.bronze}
+                  onChange={e => setMedalInputs(prev => ({ ...prev, bronze: e.target.value }))}
+                  style={{ width: '100%', textAlign: 'center', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: '0.4rem', color: 'white', padding: '0.2rem' }}
+                />
+              ) : (
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#d97706' }}>{medals.bronze}</div>
+              )}
+            </div>
+          </div>
+          {editingMedals && (
+            <button 
+              onClick={() => setEditingMedals(false)}
+              style={{ display: 'block', margin: '1rem auto 0', background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Cancelar
+            </button>
+          )}
         </div>
       )}
 
