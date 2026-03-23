@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Package, Clock, CheckCircle, XCircle, ShoppingBag, ChevronRight, Hash, Calendar, CreditCard } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, ShoppingBag, ChevronRight, Hash, Calendar, CreditCard } from 'lucide-react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 
 interface Order {
