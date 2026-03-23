@@ -55,62 +55,6 @@ export default function Dashboard() {
   const [editingMedals, setEditingMedals] = useState(false);
   const [medalInputs, setMedalInputs] = useState({ gold: '0', silver: '0', bronze: '0' });
 
-  const checkRecurringClasses = useCallback(async () => {
-    if (profile.role === 'Atleta') return;
-
-    // Buscar aulas recorrentes do passado recente (até 7 dias atrás)
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-
-    const { data: recurringClasses } = await supabase
-      .from('classes')
-      .select('*')
-      .eq('is_recurring', true)
-      .gte('date', weekAgo.toISOString().split('T')[0])
-      .lte('date', new Date().toISOString().split('T')[0]);
-
-    if (!recurringClasses) return;
-
-    for (const cls of recurringClasses) {
-      // Calcular a data da próxima semana
-      const nextDate = new Date(cls.date);
-      nextDate.setDate(nextDate.getDate() + 7);
-      const nextDateStr = nextDate.toISOString().split('T')[0];
-
-      // Verificar se já existe a aula para a próxima semana
-      let checkQuery = supabase
-        .from('classes')
-        .select('id')
-        .eq('title', cls.title)
-        .eq('date', nextDateStr)
-        .eq('start_time', cls.start_time);
-
-      if (cls.school_id) {
-        checkQuery = checkQuery.eq('school_id', cls.school_id);
-      } else {
-        checkQuery = checkQuery.is('school_id', null);
-      }
-
-      // Usar limit(1) em vez de maybeSingle para não rebentar se já houver duplicados anteriores
-      const { data: existingList } = await checkQuery.limit(1);
-      const existing = existingList && existingList.length > 0 ? existingList[0] : null;
-
-      if (!existing) {
-        // Criar a aula para a próxima semana
-        await supabase.from('classes').insert([{
-          title: cls.title,
-          date: nextDateStr,
-          start_time: cls.start_time,
-          end_time: cls.end_time,
-          capacity: cls.capacity,
-          professor_id: cls.professor_id,
-          school_id: cls.school_id,
-          is_recurring: true
-        }]);
-      }
-    }
-  }, [profile.role, profile.school_id]);
-
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     const now = new Date();
@@ -439,7 +383,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (profile) {
       fetchDashboardData();
-      checkRecurringClasses();
       setMedals({
         gold: profile.medals_gold || 0,
         silver: profile.medals_silver || 0,
@@ -451,7 +394,7 @@ export default function Dashboard() {
         bronze: String(profile.medals_bronze || 0)
       });
     }
-  }, [profile, absentFilterDays, adminFilterSchool, fetchDashboardData, checkRecurringClasses]);
+  }, [profile, absentFilterDays, adminFilterSchool, fetchDashboardData]);
 
   const exportHistoryPDF = async () => {
     setLoading(true);

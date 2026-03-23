@@ -48,8 +48,7 @@ export default function Athletes() {
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
     const isAdmin = myProfile?.role === 'Admin';
-    const isHeadProfessor = myProfile?.role === 'Professor Responsável' || myProfile?.school?.head_professor_id === myProfile?.id;
-    const canManageAllSchool = isAdmin || isHeadProfessor;
+    const canManageAllSchool = isAdmin || isProfessor(myProfile?.role);
 
     const [schools, setSchools] = useState<any[]>([]);
     const [professors, setProfessors] = useState<any[]>([]);
@@ -57,11 +56,6 @@ export default function Athletes() {
     const [sortConfig, setSortConfig] = useState<{ field: 'name' | 'belt' | 'school' | 'faltas', direction: 'asc' | 'desc' }>({ field: 'name', direction: 'asc' });
     const [showArchived, setShowArchived] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<Profile | null>(null);
-
-    useEffect(() => {
-        fetchAthletes();
-        loadSchools();
-    }, [selectedSchool]);
 
     async function loadSchools() {
         const { data: schoolsData } = await supabase.from('schools').select('id, name, order_index').order('order_index', { ascending: true }).order('name');
@@ -82,11 +76,7 @@ export default function Athletes() {
             .neq('is_hidden', true);
 
         if (isProfessor(myProfile?.role)) {
-            if (isHeadProfessor) {
-                query = query.eq('school_id', myProfile.school_id);
-            } else {
-                query = query.eq('assigned_professor_id', myProfile.id);
-            }
+            query = query.eq('school_id', myProfile.school_id);
         } else if (isAdmin && selectedSchool !== 'all') {
             query = query.eq('school_id', selectedSchool);
         }
@@ -111,6 +101,12 @@ export default function Athletes() {
         }
         setLoading(false);
     }
+
+    useEffect(() => {
+        fetchAthletes();
+        loadSchools();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedSchool, myProfile?.id]);
 
     async function archiveAthlete(id: string, archive: boolean) {
         const { error } = await supabase
@@ -418,6 +414,7 @@ export default function Athletes() {
                                                     className="table-select"
                                                     value={editForm.role || 'Atleta'}
                                                     onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}
+                                                    disabled={!isAdmin}
                                                 >
                                                     {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                                                 </select>

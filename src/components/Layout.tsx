@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import {
   LogOut, Home, Calendar, Users, Activity, Settings,
   ShieldCheck, Menu, X, Building2, HelpCircle, Download, CreditCard, Megaphone, UserCheck,
-  Bell, BellOff, CalendarDays, Folder, ListChecks
+  Bell, BellOff, CalendarDays, Folder, ListChecks, ShoppingBag, Package, ShoppingCart
 } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { usePushNotifications } from '../hooks/usePushNotifications';
@@ -16,6 +16,7 @@ export default function Layout() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
   const [hasUnreadEvents, setHasUnreadEvents] = useState(false);
+  const [hasUnreadOrders, setHasUnreadOrders] = useState(false);
   const [pendingValidations, setPendingValidations] = useState(0);
   const { isSupported, isSubscribed, subscribe, unsubscribe } = usePushNotifications(profile?.id);
   const navigate = useNavigate();
@@ -161,6 +162,37 @@ export default function Layout() {
     }
   }, [profile, location.pathname]);
 
+  // Verificar novas encomendas (apenas para Admin)
+  useEffect(() => {
+    if (!profile || profile.role !== 'Admin') return;
+    async function checkNewOrders() {
+      const { data } = await supabase
+        .from('store_orders')
+        .select('created_at')
+        .eq('status', 'pendente')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data) {
+        const lastSeenKey = `orders_last_seen_${profile.id}`;
+        const lastSeen = localStorage.getItem(lastSeenKey);
+        const latestTs = new Date(data.created_at).getTime();
+        if (!lastSeen || latestTs > parseInt(lastSeen)) {
+          setHasUnreadOrders(true);
+        } else {
+          setHasUnreadOrders(false);
+        }
+      }
+    }
+    checkNewOrders();
+
+    if (location.pathname === '/admin/encomendas') {
+      localStorage.setItem(`orders_last_seen_${profile.id}`, Date.now().toString());
+      setHasUnreadOrders(false);
+    }
+  }, [profile, location.pathname]);
+
   // Verificar validações pendentes (para badge)
   useEffect(() => {
     if (!profile) return;
@@ -194,6 +226,8 @@ export default function Layout() {
     ? [
       { name: 'Dashboard', path: '/dashboard', icon: Home },
       { name: 'Aulas', path: '/aulas', icon: Calendar },
+      { name: 'Loja', path: '/loja', icon: ShoppingBag },
+      { name: 'Encomendas', path: '/minhas-encomendas', icon: Package },
       { name: 'Eventos', path: '/eventos', icon: CalendarDays, badge: hasUnreadEvents },
       { name: 'Documentos', path: '/documentos', icon: Folder },
       { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
@@ -205,8 +239,14 @@ export default function Layout() {
       ...(isProfessor(profile?.role) ? [{ name: 'Aulas', path: '/aulas', icon: Calendar }] : []),
       { name: 'Eventos', path: '/eventos', icon: CalendarDays, badge: hasUnreadEvents },
       { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
+      { name: 'Loja', path: '/loja', icon: ShoppingBag },
+      { name: 'Encomendas', path: '/minhas-encomendas', icon: Package },
       { name: 'Atletas', path: '/admin/atletas', icon: Users },
-      ...(profile?.role === 'Admin' ? [{ name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 }] : []),
+      ...(profile?.role === 'Admin' ? [
+        { name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 },
+        { name: 'Artigos Loja', path: '/admin/loja', icon: CreditCard },
+        { name: 'Gestão Encomendas', path: '/admin/encomendas', icon: ShoppingCart, badge: hasUnreadOrders }
+      ] : []),
       ...((profile?.role === 'Admin' || (isProfessor(profile?.role) && profile?.school?.payment_management_enabled !== false)) ? [{ name: 'Pagamentos', path: '/admin/pagamentos', icon: CreditCard }] : []),
       { name: 'Check-in', path: '/admin/checkin', icon: ShieldCheck },
       { name: 'Marcações', path: profile?.role === 'Admin' ? '/admin/marcacoes' : '/marcacoes', icon: ListChecks },

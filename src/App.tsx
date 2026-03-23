@@ -21,6 +21,10 @@ import Validations from './pages/Validations';
 import Events from './pages/Events';
 import Documents from './pages/Documents';
 import Attendances from './pages/Attendances';
+import Store from './pages/Store';
+import MyOrders from './pages/MyOrders';
+import StoreManagement from './pages/admin/StoreManagement';
+import OrderManagement from './pages/admin/OrderManagement';
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -100,6 +104,10 @@ function App() {
           <Route path="/documentos" element={<Documents />} />
           <Route path="/marcacoes" element={<Attendances />} />
           <Route path="/admin/marcacoes" element={<Attendances />} />
+          <Route path="/loja" element={<Store />} />
+          <Route path="/minhas-encomendas" element={<MyOrders />} />
+          <Route path="/admin/loja" element={<StoreManagement />} />
+          <Route path="/admin/encomendas" element={<OrderManagement />} />
         </Route>
       </Routes>
     </Router>
