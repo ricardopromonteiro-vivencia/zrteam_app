@@ -7,7 +7,7 @@
 -- Garantir que RLS está ativa na tabela
 ALTER TABLE public.class_bookings ENABLE ROW LEVEL SECURITY;
 
--- Limpar políticas antigas que possam conflituar
+-- Limpar políticas antigas E novas (para ser idempotente)
 DROP POLICY IF EXISTS "Utilizadores veem as suas marcações" ON public.class_bookings;
 DROP POLICY IF EXISTS "Utilizadores inscrevem-se" ON public.class_bookings;
 DROP POLICY IF EXISTS "Professores gerem check-ins da sua escola" ON public.class_bookings;
@@ -19,6 +19,19 @@ DROP POLICY IF EXISTS "Users select own bookings" ON public.class_bookings;
 DROP POLICY IF EXISTS "Users insert own bookings" ON public.class_bookings;
 DROP POLICY IF EXISTS "Users update own bookings" ON public.class_bookings;
 DROP POLICY IF EXISTS "Users delete own bookings" ON public.class_bookings;
+-- Nomes novos (caso este script já tenha sido corrido antes)
+DROP POLICY IF EXISTS "cb_user_select_own" ON public.class_bookings;
+DROP POLICY IF EXISTS "cb_prof_select_school" ON public.class_bookings;
+DROP POLICY IF EXISTS "cb_admin_select_all" ON public.class_bookings;
+DROP POLICY IF EXISTS "cb_user_insert_own" ON public.class_bookings;
+DROP POLICY IF EXISTS "cb_prof_insert_school" ON public.class_bookings;
+DROP POLICY IF EXISTS "cb_admin_insert" ON public.class_bookings;
+DROP POLICY IF EXISTS "cb_user_update_own" ON public.class_bookings;
+DROP POLICY IF EXISTS "cb_prof_update_school" ON public.class_bookings;
+DROP POLICY IF EXISTS "cb_admin_update" ON public.class_bookings;
+DROP POLICY IF EXISTS "cb_user_delete_own" ON public.class_bookings;
+DROP POLICY IF EXISTS "cb_prof_delete_school" ON public.class_bookings;
+DROP POLICY IF EXISTS "cb_admin_delete" ON public.class_bookings;
 
 -- ─── SELECT ───────────────────────────────────────────────────────────────────
 

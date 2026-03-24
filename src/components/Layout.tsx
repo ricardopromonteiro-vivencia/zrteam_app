@@ -41,8 +41,9 @@ export default function Layout() {
   };
 
   useEffect(() => {
-    // Fechar a sidebar quando a rota muda (útil em mobile)
+    // Fechar a sidebar e fazer scroll para o topo quando a rota muda
     setIsSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.pathname]);
 
   useEffect(() => {
@@ -222,38 +223,123 @@ export default function Layout() {
     navigate('/');
   };
 
-  const navItems = profile?.role === 'Atleta'
+  const navGroups: { title: string; items: { name: string; path: string; icon: any; badge?: boolean | number }[] }[] = profile?.role === 'Atleta'
     ? [
-      { name: 'Dashboard', path: '/dashboard', icon: Home },
-      { name: 'Aulas', path: '/aulas', icon: Calendar },
-      { name: 'Loja', path: '/loja', icon: ShoppingBag },
-      { name: 'Encomendas', path: '/minhas-encomendas', icon: Package },
-      { name: 'Eventos', path: '/eventos', icon: CalendarDays, badge: hasUnreadEvents },
-      { name: 'Documentos', path: '/documentos', icon: Folder },
-      { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
-      { name: 'Área Pessoal', path: '/settings', icon: Settings },
+      {
+        title: '📊 Principal',
+        items: [
+          { name: 'Dashboard', path: '/dashboard', icon: Home },
+          { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
+          { name: 'Eventos', path: '/eventos', icon: CalendarDays, badge: hasUnreadEvents },
+        ]
+      },
+      {
+        title: '🥋 Treino',
+        items: [
+          { name: 'Aulas', path: '/aulas', icon: Calendar },
+        ]
+      },
+      {
+        title: '🛍️ Loja',
+        items: [
+          { name: 'Loja', path: '/loja', icon: ShoppingBag },
+          { name: 'As Minhas Encomendas', path: '/minhas-encomendas', icon: Package },
+        ]
+      },
+      {
+        title: '📁 Mais',
+        items: [
+          { name: 'Documentos', path: '/documentos', icon: Folder },
+          { name: 'Área Pessoal', path: '/settings', icon: Settings },
+        ]
+      },
     ]
-    : [
-      { name: 'Dashboard', path: '/dashboard', icon: Activity },
-      { name: 'Gestão de Aulas', path: '/admin/aulas', icon: Calendar },
-      ...(isProfessor(profile?.role) ? [{ name: 'Aulas', path: '/aulas', icon: Calendar }] : []),
-      { name: 'Eventos', path: '/eventos', icon: CalendarDays, badge: hasUnreadEvents },
-      { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
-      { name: 'Loja', path: '/loja', icon: ShoppingBag },
-      { name: 'Encomendas', path: '/minhas-encomendas', icon: Package },
-      { name: 'Atletas', path: '/admin/atletas', icon: Users },
-      ...(profile?.role === 'Admin' ? [
-        { name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 },
-        { name: 'Artigos Loja', path: '/admin/loja', icon: CreditCard },
-        { name: 'Gestão Encomendas', path: '/admin/encomendas', icon: ShoppingCart, badge: hasUnreadOrders }
-      ] : []),
-      ...((profile?.role === 'Admin' || (isProfessor(profile?.role) && profile?.school?.payment_management_enabled !== false)) ? [{ name: 'Pagamentos', path: '/admin/pagamentos', icon: CreditCard }] : []),
-      { name: 'Check-in', path: '/admin/checkin', icon: ShieldCheck },
-      { name: 'Marcações', path: profile?.role === 'Admin' ? '/admin/marcacoes' : '/marcacoes', icon: ListChecks },
-      ...((profile?.role === 'Admin' || profile?.school?.head_professor_id === profile?.id) ? [{ name: 'Validações', path: '/admin/validacoes', icon: UserCheck, badge: pendingValidations > 0 }] : []),
-      { name: 'Documentos', path: '/documentos', icon: Folder },
-      { name: 'Definições', path: '/settings', icon: Settings },
+    : profile?.role === 'Admin'
+    ? [
+      {
+        title: '📊 Principal',
+        items: [
+          { name: 'Dashboard', path: '/dashboard', icon: Activity },
+          { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
+          { name: 'Eventos', path: '/eventos', icon: CalendarDays, badge: hasUnreadEvents },
+        ]
+      },
+      {
+        title: '🥋 Treino',
+        items: [
+          { name: 'Gestão de Aulas', path: '/admin/aulas', icon: Calendar },
+          { name: 'Check-in', path: '/admin/checkin', icon: ShieldCheck },
+          { name: 'Marcações', path: '/admin/marcacoes', icon: ListChecks },
+        ]
+      },
+      {
+        title: '👥 Gestão',
+        items: [
+          { name: 'Atletas', path: '/admin/atletas', icon: Users },
+          { name: 'Validações', path: '/admin/validacoes', icon: UserCheck, badge: pendingValidations > 0 },
+          { name: 'Pagamentos', path: '/admin/pagamentos', icon: CreditCard },
+          { name: 'Gestão de Escolas', path: '/admin/escolas', icon: Building2 },
+        ]
+      },
+      {
+        title: '🛍️ Loja',
+        items: [
+          { name: 'Loja', path: '/loja', icon: ShoppingBag },
+          { name: 'Artigos Loja', path: '/admin/loja', icon: Package },
+          { name: 'Gestão Encomendas', path: '/admin/encomendas', icon: ShoppingCart, badge: hasUnreadOrders },
+        ]
+      },
+      {
+        title: '📁 Mais',
+        items: [
+          { name: 'Documentos', path: '/documentos', icon: Folder },
+          { name: 'Definições', path: '/settings', icon: Settings },
+        ]
+      },
+    ]
+    : /* Professores / Prof. Responsável */
+    [
+      {
+        title: '📊 Principal',
+        items: [
+          { name: 'Dashboard', path: '/dashboard', icon: Activity },
+          { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
+          { name: 'Eventos', path: '/eventos', icon: CalendarDays, badge: hasUnreadEvents },
+        ]
+      },
+      {
+        title: '🥋 Treino',
+        items: [
+          { name: 'Gestão de Aulas', path: '/admin/aulas', icon: Calendar },
+          { name: 'Aulas', path: '/aulas', icon: Calendar },
+          { name: 'Check-in', path: '/admin/checkin', icon: ShieldCheck },
+          { name: 'Marcações', path: '/marcacoes', icon: ListChecks },
+        ]
+      },
+      {
+        title: '👥 Equipa',
+        items: [
+          { name: 'Atletas', path: '/admin/atletas', icon: Users },
+          ...(profile?.school?.head_professor_id === profile?.id ? [{ name: 'Validações', path: '/admin/validacoes', icon: UserCheck, badge: pendingValidations > 0 }] : []),
+          ...((isProfessor(profile?.role) && profile?.school?.payment_management_enabled !== false) ? [{ name: 'Pagamentos', path: '/admin/pagamentos', icon: CreditCard }] : []),
+        ]
+      },
+      {
+        title: '🛍️ Loja',
+        items: [
+          { name: 'Loja', path: '/loja', icon: ShoppingBag },
+          { name: 'As Minhas Encomendas', path: '/minhas-encomendas', icon: Package },
+        ]
+      },
+      {
+        title: '📁 Mais',
+        items: [
+          { name: 'Documentos', path: '/documentos', icon: Folder },
+          { name: 'Definições', path: '/settings', icon: Settings },
+        ]
+      },
     ];
+
 
   if (!profile) return <div className="loading-state">A carregar perfil...</div>;
 
@@ -321,19 +407,24 @@ export default function Layout() {
         </div>
 
         <div className="sidebar-nav">
-          {navItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`nav-link ${location.pathname === item.path ? 'active' : ''}`}
-              onClick={() => setIsSidebarOpen(false)}
-            >
-              <item.icon size={20} />
-              <span style={{ flex: 1 }}>{item.name}</span>
-              {(item as any).badge && (
-                <span className="nav-badge-dot" title="Tens avisos não lidos" />
-              )}
-            </Link>
+          {navGroups.map((group) => (
+            <div key={group.title} className="nav-group">
+              <span className="nav-group-title">{group.title}</span>
+              {group.items.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`nav-link ${location.pathname === item.path ? 'active' : ''}`}
+                  onClick={() => setIsSidebarOpen(false)}
+                >
+                  <item.icon size={20} />
+                  <span style={{ flex: 1 }}>{item.name}</span>
+                  {(item as any).badge && (
+                    <span className="nav-badge-dot" title="Tens notificações não lidas" />
+                  )}
+                </Link>
+              ))}
+            </div>
           ))}
           <Link to="/termos" className="nav-link terms-nav-link" onClick={() => setIsSidebarOpen(false)}>
             <ShieldCheck size={20} /> Termos e Condições
@@ -483,6 +574,17 @@ export default function Layout() {
         .sidebar-nav::-webkit-scrollbar-thumb {
           background: rgba(255,255,255,0.1);
           border-radius: 10px;
+        }
+        .nav-group { margin-bottom: 0.25rem; }
+        .nav-group-title {
+          display: block;
+          padding: 0.6rem 1.5rem 0.3rem;
+          font-size: 0.65rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: rgba(255,255,255,0.25);
+          user-select: none;
         }
         .nav-link {
           display: flex;

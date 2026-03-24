@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShoppingCart, ShoppingBag, Eye, Search, X, Plus, Minus, Check, AlertCircle, ClipboardList } from 'lucide-react';
+import { ShoppingCart, ShoppingBag, Search, X, Plus, Minus, Check, AlertCircle, ClipboardList } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 
 interface CartItem {
@@ -25,7 +25,10 @@ export default function Store() {
     const [selectedProduct, setSelectedProduct] = useState<any>(null);
     const [selectedVariant, setSelectedVariant] = useState<any>(null);
     const [currentViewImage, setCurrentViewImage] = useState<string | null>(null);
-    const [cart, setCart] = useState<CartItem[]>([]);
+    const [cart, setCart] = useState<CartItem[]>(() => {
+        const savedCart = localStorage.getItem('zr_store_cart');
+        return savedCart ? JSON.parse(savedCart) : [];
+    });
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [orderPlacing, setOrderPlacing] = useState(false);
     const [requestPlacing, setRequestPlacing] = useState(false);
@@ -45,9 +48,7 @@ export default function Store() {
         if (cats) setCategories(cats);
         if (prods) setProducts(prods);
         
-        // Load cart from localStorage once when data is fetched or initial mount
-        const savedCart = localStorage.getItem('zr_store_cart');
-        if (savedCart) setCart(JSON.parse(savedCart));
+        // O cart já é carregado na sua inicialização do state, e salvo no respetivo useEffect
         
         setLoading(false);
     }, []);
@@ -234,7 +235,6 @@ export default function Store() {
                                 <h3>{product.name}</h3>
                                 <div className="product-footer">
                                     <span className="product-price">{product.price.toFixed(2)}€</span>
-                                    <button className="view-btn"><Eye size={18} /></button>
                                 </div>
                             </div>
                         </div>
@@ -394,7 +394,7 @@ export default function Store() {
                 .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
                 .product-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 1rem; overflow: hidden; cursor: pointer; transition: all 0.2s; }
                 .product-card:hover { border-color: var(--primary); transform: translateY(-4px); }
-                .product-image { height: 200px; background: #1a1a1a; display: flex; alignItems: center; justifyContent: center; overflow: hidden; }
+                .product-image { height: 200px; background: #1a1a1a; display: flex; alignItems: center; justifyContent: center; overflow: hidden; position: relative; }
                 .product-image img { width: 100%; height: 100%; object-fit: cover; }
                 .product-info { padding: 1.25rem; }
                 .product-category { font-size: 0.7rem; text-transform: uppercase; color: var(--primary); font-weight: 700; letter-spacing: 0.5px; }

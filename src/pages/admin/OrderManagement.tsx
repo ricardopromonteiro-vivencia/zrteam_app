@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
-import { ShoppingBag, CheckCircle, Clock, XCircle, Search, Filter, User, Building, Calendar, ChevronDown, ChevronUp, FileDown, ClipboardList } from 'lucide-react';
+import { ShoppingBag, CheckCircle, Clock, XCircle, Search, User, Building, Calendar, ChevronDown, ChevronUp, FileDown, ClipboardList, Trash2 } from 'lucide-react';
 
 interface Order {
     id: string;
@@ -37,7 +37,11 @@ export default function OrderManagement() {
             .order('created_at', { ascending: false });
 
         if (statusFilter !== 'all') {
-            query = query.eq('status', statusFilter);
+            if (statusFilter === 'especial') {
+                query = query.ilike('notes', 'encomenda_especial%');
+            } else {
+                query = query.eq('status', statusFilter);
+            }
         }
 
         const { data } = await query;
@@ -67,6 +71,27 @@ export default function OrderManagement() {
                     .single();
                 setSelectedOrder(data);
             }
+        }
+        setLoading(false);
+    }
+
+    async function deleteOrder(orderId: string) {
+        if (!confirm('Esta ação é irreversível. Tens a certeza ABSOLUTA que desejas eliminar esta encomenda? (Também será eliminada da BD)')) return;
+        
+        setLoading(true);
+        const { error } = await supabase
+            .from('store_orders')
+            .delete()
+            .eq('id', orderId);
+            
+        if (!error) {
+            fetchOrders();
+            if (selectedOrder?.id === orderId) {
+                setSelectedOrder(null);
+            }
+        } else {
+            alert('Erro ao eliminar encomenda. Verifica se tens permissões.');
+            console.error(error);
         }
         setLoading(false);
     }
@@ -223,15 +248,25 @@ export default function OrderManagement() {
                     <Search size={20} />
                     <input placeholder="Procurar por atleta ou escola..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                 </div>
-                <div className="filter-group">
-                    <Filter size={20} />
-                    <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                        <option value="all">Todos os Estados</option>
-                        <option value="pendente">Pendentes</option>
-                        <option value="pago">Pagas</option>
-                        <option value="entregue">Entregues</option>
-                        <option value="cancelado">Canceladas</option>
-                    </select>
+                <div className="filter-chips">
+                    <button className={`chip chip-all ${statusFilter === 'all' ? 'active' : ''}`} onClick={() => setStatusFilter('all')}>
+                        Todas
+                    </button>
+                    <button className={`chip chip-pendente ${statusFilter === 'pendente' ? 'active' : ''}`} onClick={() => setStatusFilter('pendente')}>
+                        Pendentes
+                    </button>
+                    <button className={`chip chip-pago ${statusFilter === 'pago' ? 'active' : ''}`} onClick={() => setStatusFilter('pago')}>
+                        Pagas
+                    </button>
+                    <button className={`chip chip-entregue ${statusFilter === 'entregue' ? 'active' : ''}`} onClick={() => setStatusFilter('entregue')}>
+                        Entregues
+                    </button>
+                    <button className={`chip chip-cancelado ${statusFilter === 'cancelado' ? 'active' : ''}`} onClick={() => setStatusFilter('cancelado')}>
+                        Canceladas
+                    </button>
+                    <button className={`chip chip-especial ${statusFilter === 'especial' ? 'active' : ''}`} onClick={() => setStatusFilter('especial')}>
+                        ⚠ Especiais
+                    </button>
                 </div>
             </div>
 
@@ -296,20 +331,29 @@ export default function OrderManagement() {
             </div>
 
             {selectedOrder && (
-                <div className="modal-overlay">
-                    <div className="modal-content order-modal">
+                <div className="order-modal-overlay">
+                    <div className="order-modal modal-content">
                         <div className="modal-header">
-                            <h2>Detalhes da Encomenda</h2>
-                            <button onClick={() => setSelectedOrder(null)} className="close-btn"><XCircle /></button>
+                            <h2>Detalhes da Encomenda #{selectedOrder.id.slice(0, 8)}</h2>
+                            <button onClick={() => setSelectedOrder(null)} className="close-btn"><XCircle size={24} /></button>
                         </div>
                         
                         <div className="order-modal-body">
                             {isSpecialRequest(selectedOrder) && (
                                 <div className="special-order-banner">
                                     <ClipboardList size={20} />
-                                    <span>Pedido Especial — artigo sem stock. Artigo: <strong>{selectedOrder.notes?.replace('encomenda_especial | ', '')}</strong></span>
+                                    <div>
+                                        <strong>O Atleta tem interesse num artigo sem stock selecionado na Loja!</strong>
+                                        <div>Tamanho/Cor: {selectedOrder.notes?.replace('encomenda_especial | ', '')}</div>
+                                    </div>
                                 </div>
                             )}
+
+                            <div className="action-buttons-top" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+                                <button onClick={() => deleteOrder(selectedOrder.id)} className="btn-danger" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'var(--danger)', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+                                    <Trash2 size={16} /> Eliminar Encomenda
+                                </button>
+                            </div>
 
                             <div className="order-details-grid">
                                 <div className="details-card">
@@ -377,11 +421,32 @@ export default function OrderManagement() {
                 .export-pdf-btn { display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.25rem; background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; border: none; border-radius: 0.75rem; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; white-space: nowrap; }
                 .export-pdf-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(99,102,241,0.4); }
 
-                .orders-filters { display: flex; gap: 1rem; margin-bottom: 2rem; background: var(--bg-card); padding: 1rem; border-radius: 0.75rem; border: 1px solid var(--border); }
-                .search-box { flex: 2; display: flex; align-items: center; gap: 0.75rem; background: var(--bg-dark); padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border); }
+                .orders-filters { display: flex; flex-direction: column; gap: 1.25rem; margin-bottom: 2rem; background: var(--bg-card); padding: 1rem; border-radius: 0.75rem; border: 1px solid var(--border); }
+                @media (min-width: 1024px) {
+                    .orders-filters { flex-direction: row; align-items: flex-start; }
+                }
+                .search-box { width: 100%; display: flex; align-items: center; gap: 0.75rem; background: var(--bg-dark); padding: 0.75rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border); }
+                @media (min-width: 1024px) {
+                    .search-box { flex: 1; max-width: 400px; }
+                }
                 .search-box input { background: none; border: none; color: white; width: 100%; outline: none; }
-                .filter-group { flex: 1; display: flex; align-items: center; gap: 0.75rem; background: var(--bg-dark); padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border); }
-                .filter-group select { background: none; border: none; color: white; width: 100%; outline: none; cursor: pointer; }
+                
+                .filter-chips { width: 100%; display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-start; }
+                @media (min-width: 1024px) {
+                    .filter-chips { flex: 2; }
+                }
+                .chip { padding: 0.5rem 1rem; border-radius: 99px; font-size: 0.8rem; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; background: var(--bg-dark); color: var(--text-muted); white-space: nowrap; flex: 1; text-align: center; min-width: max-content; }
+                @media (min-width: 480px) {
+                    .chip { flex: 0 1 auto; }
+                }
+                .chip:hover { filter: brightness(1.2); }
+                
+                .chip-all.active { background: white; color: black; }
+                .chip-pendente.active { background: rgba(245,158,11,0.15); color: #f59e0b; border-color: rgba(245,158,11,0.3); }
+                .chip-pago.active { background: rgba(16,185,129,0.15); color: #10b981; border-color: rgba(16,185,129,0.3); }
+                .chip-entregue.active { background: rgba(59,130,246,0.15); color: #3b82f6; border-color: rgba(59,130,246,0.3); }
+                .chip-cancelado.active { background: rgba(239,68,68,0.15); color: #ef4444; border-color: rgba(239,68,68,0.3); }
+                .chip-especial.active { background: rgba(249,115,22,0.15); color: #f97316; border-color: rgba(249,115,22,0.3); }
 
                 .loading-msg { text-align: center; color: var(--text-muted); padding: 2rem; }
                 .empty-orders { text-align: center; color: var(--text-muted); padding: 3rem; background: var(--bg-card); border-radius: 1rem; border: 1px solid var(--border); }

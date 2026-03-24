@@ -309,7 +309,7 @@ export default function StoreManagement() {
                     <p className="page-subtitle">Gere os artigos, stock e categorias da loja CTS/ZR.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <button className="btn-secondary" onClick={() => { setEditingCategory({}); setShowCategoryModal(true); }}>
+                    <button className="btn-primary" style={{ backgroundColor: '#2563eb', color: 'white', border: 'none' }} onClick={() => { setEditingCategory({}); setShowCategoryModal(true); }}>
                         <Tag size={20} /> Categorias
                     </button>
                     <button className="btn-primary" onClick={() => { setEditingProduct({ name: '', price: 0, category_id: categories[0]?.id || '', gallery_urls: [] }); setVariants([]); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
