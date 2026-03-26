@@ -18,7 +18,6 @@ export default function CheckIn() {
 
     const isAdmin = profile?.role === 'Admin';
     const isProfessor = checkIsProfessor(profile?.role);
-    const isHeadProfessor = false; // reservado para uso futuro
 
     // Buscar aulas e atletas da própria escola
     useEffect(() => {

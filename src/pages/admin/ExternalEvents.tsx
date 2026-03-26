@@ -221,7 +221,7 @@ export default function ExternalEvents() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {futureEvents.map(ev => <EventCard key={ev.id} ev={ev} today={today} onDelete={handleDelete} deleteId={deleteId} />)}
+                {futureEvents.map(ev => <EventCard key={ev.id} ev={ev} onDelete={handleDelete} deleteId={deleteId} />)}
               </div>
             )}
           </section>
@@ -233,7 +233,7 @@ export default function ExternalEvents() {
                 🗂️ Eventos Passados ({pastEvents.length})
               </h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {[...pastEvents].reverse().map(ev => <EventCard key={ev.id} ev={ev} today={today} onDelete={handleDelete} deleteId={deleteId} past />)}
+                {[...pastEvents].reverse().map(ev => <EventCard key={ev.id} ev={ev} onDelete={handleDelete} deleteId={deleteId} past />)}
               </div>
             </section>
           )}
@@ -248,9 +248,8 @@ export default function ExternalEvents() {
   );
 }
 
-function EventCard({ ev, today, onDelete, deleteId, past = false }: {
+function EventCard({ ev, onDelete, deleteId, past = false }: {
   ev: ExternalEvent;
-  today: string;
   onDelete: (id: string) => void;
   deleteId: string | null;
   past?: boolean;
