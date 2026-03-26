@@ -49,6 +49,7 @@ export default function Dashboard() {
   const [schools, setSchools] = useState<any[]>([]);
   const [totalAbsences, setTotalAbsences] = useState<number>(0);
   const [nextEvent, setNextEvent] = useState<any | null>(null);
+  const [nextExternalEvent, setNextExternalEvent] = useState<any | null>(null);
   const [weeklyRanking, setWeeklyRanking] = useState<{ full_name: string; role: string; belt: string; count: number }[]>([]);
   const [monthlyAwards, setMonthlyAwards] = useState<{ full_name: string; role: string; belt: string; count: number }[]>([]);
   const [medals, setMedals] = useState({ gold: 0, silver: 0, bronze: 0 });
@@ -98,6 +99,7 @@ export default function Dashboard() {
     let rankData: any = null;
     let awardsData: any = null;
     let lastPresence: any = null;
+    let externalEventData: any = null;
 
     // --- Preparar promessas extras baseadas na Role ---
     const promises: Promise<void>[] = [
@@ -245,6 +247,17 @@ export default function Dashboard() {
       eventData = res.data;
     })());
 
+    // Eventos Externos (para todos)
+    promises.push((async () => {
+      const { data } = await supabase.from('external_events')
+        .select('*')
+        .gte('event_date', today)
+        .order('event_date', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      externalEventData = data;
+    })());
+
     // Ranking Semanal
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7));
@@ -356,6 +369,7 @@ export default function Dashboard() {
     }
 
     setNextEvent(eventData || null);
+    setNextExternalEvent(externalEventData || null);
 
     if (rankData) {
       const counts: Record<string, { full_name: string; role: string; belt: string; count: number }> = {};
@@ -682,6 +696,51 @@ export default function Dashboard() {
                 <button onClick={() => { setEditingMedals(false); setMedalInputs({ gold: String(medals.gold), silver: String(medals.silver), bronze: String(medals.bronze) }); }} className="btn-secondary" style={{ flex: 1, fontSize: '0.8rem', padding: '0.4rem' }}>Cancelar</button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Próximo Evento Externo (Admin/Prof) */}
+        {!loading && nextExternalEvent && (
+          <div
+            onClick={() => window.open(nextExternalEvent.link_url, '_blank')}
+            style={{
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%)',
+              border: '1px solid rgba(16, 185, 129, 0.2)',
+              borderRadius: '1rem', padding: '1.25rem', marginBottom: '1.5rem',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(16,185,129,0.1)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+              <div style={{
+                width: '56px', height: '56px', borderRadius: '1rem', background: 'var(--bg-dark)',
+                border: '1px solid rgba(16, 185, 129, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '1.75rem', flexShrink: 0
+              }}>
+                🏆
+              </div>
+              <div>
+                <h3 style={{ margin: '0 0 0.2rem', fontSize: '1.05rem', color: 'white', fontWeight: 700 }}>
+                  {nextExternalEvent.name}
+                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    📅 {new Date(nextExternalEvent.event_date + 'T12:00:00').toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' })}
+                  </span>
+                  {(() => {
+                    const d = new Date(nextExternalEvent.event_date + 'T12:00:00');
+                    const t = new Date(); t.setHours(0,0,0,0);
+                    const diff = Math.ceil((d.getTime() - t.getTime()) / (1000 * 60 * 60 * 24));
+                    return diff === 0 ? <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fca5a5', background: 'rgba(239,68,68,0.15)', padding: '0.15rem 0.5rem', borderRadius: '9999px' }}>Hoje!</span>
+                      : diff === 1 ? <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fcd34d', background: 'rgba(245,158,11,0.15)', padding: '0.15rem 0.5rem', borderRadius: '9999px' }}>Amanhã</span>
+                      : <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', background: 'rgba(16,185,129,0.15)', padding: '0.15rem 0.5rem', borderRadius: '9999px' }}>Daqui a {diff} dias</span>;
+                  })()}
+                </div>
+              </div>
+            </div>
+            <ExternalLink size={20} style={{ color: 'var(--primary)', opacity: 0.7 }} />
           </div>
         )}
 
@@ -1087,6 +1146,51 @@ export default function Dashboard() {
               Cancelar
             </button>
           )}
+        </div>
+      )}
+
+      {/* Próximo Evento Externo (Atleta) */}
+      {!loading && profile.role === 'Atleta' && nextExternalEvent && (
+        <div
+          onClick={() => window.open(nextExternalEvent.link_url, '_blank')}
+          style={{
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%)',
+            border: '1px solid rgba(16, 185, 129, 0.2)',
+            borderRadius: '1rem', padding: '1.25rem', marginBottom: '1.5rem',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(16,185,129,0.1)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+            <div style={{
+              width: '56px', height: '56px', borderRadius: '1rem', background: 'var(--bg-dark)',
+              border: '1px solid rgba(16, 185, 129, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '1.75rem', flexShrink: 0
+            }}>
+              🏆
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 0.2rem', fontSize: '1.05rem', color: 'white', fontWeight: 700 }}>
+                {nextExternalEvent.name}
+              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  📅 {new Date(nextExternalEvent.event_date + 'T12:00:00').toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' })}
+                </span>
+                {(() => {
+                  const d = new Date(nextExternalEvent.event_date + 'T12:00:00');
+                  const t = new Date(); t.setHours(0,0,0,0);
+                  const diff = Math.ceil((d.getTime() - t.getTime()) / (1000 * 60 * 60 * 24));
+                  return diff === 0 ? <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fca5a5', background: 'rgba(239,68,68,0.15)', padding: '0.15rem 0.5rem', borderRadius: '9999px' }}>Hoje!</span>
+                    : diff === 1 ? <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fcd34d', background: 'rgba(245,158,11,0.15)', padding: '0.15rem 0.5rem', borderRadius: '9999px' }}>Amanhã</span>
+                    : <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', background: 'rgba(16,185,129,0.15)', padding: '0.15rem 0.5rem', borderRadius: '9999px' }}>Daqui a {diff} dias</span>;
+                })()}
+              </div>
+            </div>
+          </div>
+          <ExternalLink size={20} style={{ color: 'var(--primary)', opacity: 0.7 }} />
         </div>
       )}
 

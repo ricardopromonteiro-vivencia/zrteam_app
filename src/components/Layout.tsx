@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import {
   LogOut, Home, Calendar, Users, Activity, Settings,
   ShieldCheck, Menu, X, Building2, HelpCircle, Download, CreditCard, Megaphone, UserCheck,
-  Bell, BellOff, CalendarDays, Folder, ListChecks, ShoppingBag, Package, ShoppingCart
+  Bell, BellOff, CalendarDays, Folder, ListChecks, ShoppingBag, Package, ShoppingCart, Trophy
 } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { usePushNotifications } from '../hooks/usePushNotifications';
@@ -260,6 +260,7 @@ export default function Layout() {
         title: '📊 Principal',
         items: [
           { name: 'Dashboard', path: '/dashboard', icon: Activity },
+          { name: 'Eventos Externos', path: '/admin/eventos-externos', icon: Trophy },
           { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
           { name: 'Eventos', path: '/eventos', icon: CalendarDays, badge: hasUnreadEvents },
         ]

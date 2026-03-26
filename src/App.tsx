@@ -25,6 +25,7 @@ import Store from './pages/Store';
 import MyOrders from './pages/MyOrders';
 import StoreManagement from './pages/admin/StoreManagement';
 import OrderManagement from './pages/admin/OrderManagement';
+import ExternalEvents from './pages/admin/ExternalEvents';
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -108,6 +109,7 @@ function App() {
           <Route path="/minhas-encomendas" element={<MyOrders />} />
           <Route path="/admin/loja" element={<StoreManagement />} />
           <Route path="/admin/encomendas" element={<OrderManagement />} />
+          <Route path="/admin/eventos-externos" element={<ExternalEvents />} />
         </Route>
       </Routes>
     </Router>

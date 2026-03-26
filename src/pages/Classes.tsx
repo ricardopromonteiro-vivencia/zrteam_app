@@ -163,6 +163,11 @@ export default function Classes() {
             is_recurring: isRecurring
         };
 
+        // Registar quem criou (apenas em novas aulas)
+        if (!editingClass) {
+            classData.created_by = profile.id;
+        }
+
         let error;
         if (editingClass) {
             const { error: updateError } = await supabase.from('classes').update(classData).eq('id', editingClass.id);

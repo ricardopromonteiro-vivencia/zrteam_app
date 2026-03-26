@@ -18,7 +18,7 @@ export default function CheckIn() {
 
     const isAdmin = profile?.role === 'Admin';
     const isProfessor = checkIsProfessor(profile?.role);
-    const isHeadProfessor = profile?.school?.head_professor_id === profile?.id;
+    const isHeadProfessor = false; // reservado para uso futuro
 
     // Buscar aulas e atletas da própria escola
     useEffect(() => {
@@ -54,22 +54,14 @@ export default function CheckIn() {
             }
         });
 
-        // Atletas: Admin vê todos, Professor vê os da sua escola
-        let athleteQuery = supabase
+        // Atletas: todos visíveis na pesquisa (incluindo outras escolas)
+        // Permite check-in de visitantes / professores de outras academias
+        const athleteQuery = supabase
             .from('profiles')
-            .select('id, full_name, belt, degrees, school_id')
+            .select('id, full_name, belt, degrees, school_id, schools(name)')
             .eq('is_archived', false)
             .neq('is_hidden', true)
             .order('full_name');
-
-        if (isAdmin) {
-            // Admin vê todos, sem filtro de escola
-        } else if (profile?.school_id) {
-            athleteQuery = athleteQuery.eq('school_id', profile.school_id);
-            if (isProfessor && !isHeadProfessor) {
-                athleteQuery = athleteQuery.eq('assigned_professor_id', profile.id);
-            }
-        }
 
         athleteQuery.then(({ data }) => {
             if (data) setAllSchoolAthletes(data);
@@ -213,10 +205,10 @@ export default function CheckIn() {
     };
 
     const displayedClasses = todayClasses.filter(cls => filterSchool === 'all' || cls.school_id === filterSchool);
-    const displayedAthletes = allSchoolAthletes.filter(a => filterSchool === 'all' || a.school_id === filterSchool);
 
+    // Pesquisa em TODOS os atletas (não filtrado por escola)
     const filteredAthletes = searchQuery.trim().length >= 1
-        ? displayedAthletes.filter((a: any) =>
+        ? allSchoolAthletes.filter((a: any) =>
             a.full_name.toLowerCase().includes(searchQuery.toLowerCase()) &&
             !bookings.some((b: any) => b.user_id?.id === a.id)
         )
@@ -308,19 +300,29 @@ export default function CheckIn() {
 
                             {filteredAthletes.length > 0 && (
                                 <div className="search-results">
-                                    {filteredAthletes.map(athlete => (
-                                        <div
-                                            key={athlete.id}
-                                            className="search-result-item"
-                                            onClick={() => handleQuickCheckInRequest(athlete)}
-                                        >
-                                            <div className="athlete-info">
-                                                <span className="athlete-name">{athlete.full_name}</span>
-                                                <span className="athlete-belt">{athlete.belt}</span>
+                                    {filteredAthletes.map(athlete => {
+                                        const isOtherSchool = athlete.school_id && athlete.school_id !== profile?.school_id;
+                                        return (
+                                            <div
+                                                key={athlete.id}
+                                                className="search-result-item"
+                                                onClick={() => handleQuickCheckInRequest(athlete)}
+                                            >
+                                                <div className="athlete-info">
+                                                    <span className="athlete-name">{athlete.full_name}</span>
+                                                    <span className="athlete-belt">
+                                                        {athlete.belt}
+                                                        {isOtherSchool && (
+                                                            <span style={{ color: 'var(--danger)', marginLeft: '0.4rem', fontSize: '0.7rem' }}>
+                                                                🏫 {athlete.schools?.name || 'Outra escola'}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <Plus size={18} />
                                             </div>
-                                            <Plus size={18} />
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
