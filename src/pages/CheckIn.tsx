@@ -57,12 +57,16 @@ export default function CheckIn() {
         // Permite check-in de visitantes / professores de outras academias
         const athleteQuery = supabase
             .from('profiles')
-            .select('id, full_name, belt, degrees, school_id, schools(name)')
+            .select('id, full_name, belt, degrees, school_id, schools!profiles_school_id_fkey(name)')
             .eq('is_archived', false)
             .neq('is_hidden', true)
             .order('full_name');
 
-        athleteQuery.then(({ data }) => {
+        athleteQuery.then(({ data, error }) => {
+            if (error) {
+                console.error("ERRO AO BUSCAR ATLETAS [CHECKIN]:", error);
+                alert("Erro ao carregar atletas: " + error.message);
+            }
             if (data) setAllSchoolAthletes(data);
         });
     }, [profile]);
