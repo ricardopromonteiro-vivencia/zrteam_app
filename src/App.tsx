@@ -58,7 +58,11 @@ function App() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        // Token de sessão inválido — limpar storage e forçar novo login
+        supabase.auth.signOut();
+      }
       setSession(session);
       setLoading(false);
     });

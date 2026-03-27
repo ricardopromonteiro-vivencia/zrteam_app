@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Search, Calendar, MapPin, Activity, Loader2, RefreshCw } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
@@ -29,16 +29,25 @@ export default function Attendances() {
     // Filtros
     const [searchQuery, setSearchQuery] = useState('');
     const [schoolFilter, setSchoolFilter] = useState('all');
-    const [dateFilter, setDateFilter] = useState('all');
+    const [period, setPeriod] = useState<'today' | 'yesterday' | '2d' | '3d' | '7d'>('7d');
 
-    useEffect(() => {
-        loadData();
-    }, []);
 
-    async function loadData() {
+    // Label para mensagens de estado vazio
+    const periodLabel = (p: string): string => {
+        if (p === 'today') return 'hoje';
+        if (p === 'yesterday') return 'ontem';
+        if (p === '2d') return 'nos últimos 2 dias';
+        if (p === '3d') return 'nos últimos 3 dias';
+        return 'nos últimos 7 dias';
+    };
+
+    const loadData = useCallback(async (p: string) => {
+        // periodToDays inline para evitar dependência instável
+        const days = p === 'today' ? 0 : p === 'yesterday' ? 1 : p === '2d' ? 2 : p === '3d' ? 3 : 7;
+
         setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+        if (!session) { setLoading(false); return; }
 
         const { data: prof } = await supabase
             .from('profiles')
@@ -53,9 +62,8 @@ export default function Attendances() {
             if (sData) setSchools(sData);
         }
 
-        // Buscar dados utilizando a nova RPC (Últimos 7 dias)
         const { data: rData, error } = await supabase.rpc('get_recent_attendances', {
-            p_days_ago: 7,
+            p_days_ago: days,
             p_requesting_user_id: session.user.id,
             p_requesting_role: prof?.role,
             p_requesting_school_id: prof?.school_id
@@ -68,25 +76,33 @@ export default function Attendances() {
         }
 
         setLoading(false);
-    }
+    }, []);
 
-    const uniqueDates = useMemo(() => {
-        const dates = new Set(records.map(r => r.class_date));
-        return Array.from(dates).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-    }, [records]);
+    useEffect(() => {
+        loadData(period);
+    }, [period, loadData]);
+
+    const { todayStr, yesterdayStr } = useMemo(() => {
+        const t = new Date();
+        const today = t.toISOString().split('T')[0];
+        const yest = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1).toISOString().split('T')[0];
+        return { todayStr: today, yesterdayStr: yest };
+    }, []);
 
     const filteredRecords = useMemo(() => {
+        const q = searchQuery.toLowerCase().trim();
         return records.filter(record => {
-            const matchesSearch = 
-                record.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                record.class_title.toLowerCase().includes(searchQuery.toLowerCase());
-            
+            const matchesSearch = !q ||
+                record.full_name.toLowerCase().includes(q) ||
+                record.class_title.toLowerCase().includes(q);
             const matchesSchool = schoolFilter === 'all' || record.school_id === schoolFilter;
-            const matchesDate = dateFilter === 'all' || record.class_date === dateFilter;
-
+            const matchesDate =
+                period === 'today' ? record.class_date === todayStr :
+                period === 'yesterday' ? record.class_date === yesterdayStr :
+                true;
             return matchesSearch && matchesSchool && matchesDate;
         });
-    }, [records, searchQuery, schoolFilter, dateFilter]);
+    }, [records, searchQuery, schoolFilter, period, todayStr, yesterdayStr]);
 
     async function handleStatusChange(bookingId: string, newStatus: string) {
         setSavingId(bookingId);
@@ -147,19 +163,18 @@ export default function Attendances() {
                     )}
 
                     <select 
-                        value={dateFilter} 
-                        onChange={(e) => setDateFilter(e.target.value)}
+                        value={period} 
+                        onChange={(e) => setPeriod(e.target.value as typeof period)}
                         className="filter-select"
                     >
-                        <option value="all">Últimos 7 dias (Todas)</option>
-                        {uniqueDates.map((date: any) => (
-                            <option key={date} value={date}>
-                                {format(new Date(date), 'dd/MM/yyyy')}
-                            </option>
-                        ))}
+                        <option value="today">Hoje</option>
+                        <option value="yesterday">Ontem</option>
+                        <option value="2d">Últimos 2 dias</option>
+                        <option value="3d">Últimos 3 dias</option>
+                        <option value="7d">Últimos 7 dias</option>
                     </select>
 
-                    <button onClick={loadData} className="refresh-btn" title="Atualizar dados" disabled={loading}>
+                    <button onClick={() => loadData(period)} className="refresh-btn" title="Atualizar dados" disabled={loading}>
                         <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
                     </button>
                 </div>
@@ -169,7 +184,7 @@ export default function Attendances() {
                 <div className="loading-state">A carregar registos...</div>
             ) : filteredRecords.length === 0 ? (
                 <div className="empty-state">
-                    Nenhuma marcação encontrada com os filtros atuais nos últimos 7 dias.
+                    {searchQuery ? `Nenhum resultado para "${searchQuery}" ${periodLabel(period)}.` : `Nenhuma marcação ${periodLabel(period)}.`}
                 </div>
             ) : (
                 <div className="table-responsive">

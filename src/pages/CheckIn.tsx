@@ -354,7 +354,9 @@ export default function CheckIn() {
                             <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Nenhum atleta inscrito nesta aula ainda.</p>
                         ) : (
                             <div className="bookings-list">
-                                {bookings.map(booking => (
+                                {bookings
+                                  .filter((b: any) => b.user_id?.full_name) // ocultar registos sem perfil
+                                  .map(booking => (
                                     <div key={booking.id} className={`booking-row status-${booking.status.toLowerCase()}`}>
                                         <div className="booking-info">
                                             <span className="booking-name">{booking.user_id?.full_name}</span>
@@ -535,6 +537,55 @@ export default function CheckIn() {
           border: 1px solid var(--border);
           background-color: rgba(255,255,255,0.02);
           transition: background-color 0.2s;
+          gap: 0.75rem;
+        }
+
+        @media (max-width: 600px) {
+          .checkin-page { padding: 0 0 5rem; }
+          .today-classes { margin-bottom: 1.25rem; }
+          .today-classes > div { flex-direction: column !important; }
+          .class-select-btn { width: 100%; }
+
+          .search-panel {
+            padding: 0.6rem 0.75rem;
+            gap: 0.6rem;
+            margin: 1rem 0;
+          }
+
+          .bookings-panel { padding: 1rem; border-radius: 0.75rem; }
+          .bookings-header { flex-direction: column; align-items: flex-start; }
+
+          .booking-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 1rem;
+          }
+          .booking-info { width: 100%; }
+          .booking-name { font-size: 1rem; }
+          .booking-belt { font-size: 0.8rem; }
+          .booking-actions {
+            width: 100%;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+          }
+          .btn-checkin, .btn-revert-checkin, .btn-danger {
+            flex: 1;
+            justify-content: center;
+            padding: 0.6rem 0.5rem;
+            font-size: 0.8rem;
+          }
+          .btn-remove-booking {
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            background: rgba(239,68,68,0.1);
+            color: var(--danger);
+            border: 1px solid rgba(239,68,68,0.2);
+          }
+          .status-badge { font-size: 0.75rem; min-width: 90px; justify-content: center; }
+          .section-title { font-size: 1rem; }
+          .page-title { font-size: 1.25rem !important; }
         }
         .booking-row.status-presente { border-color: rgba(16,185,129,0.3); background-color: rgba(16,185,129,0.05); }
         .booking-row.status-falta { border-color: rgba(239,68,68,0.2); background-color: rgba(239,68,68,0.03); }
