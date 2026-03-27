@@ -54,11 +54,41 @@ export default function Layout() {
         return;
       }
 
+      // Tentativa 1: Query completa com joins
       let { data, error } = await supabase
         .from('profiles')
         .select('*, school:schools!school_id(name, head_professor_id, payment_management_enabled), assigned_professor:profiles!assigned_professor_id(full_name)')
         .eq('id', session.user.id)
         .single();
+
+      // Tentativa 2: Se falhou (ex: erro 500 de RLS), tenta query simplificada sem joins problemáticos
+      if (error && (error.code === '500' || error.message?.includes('500') || error.message?.includes('recursion') || error.message?.includes('Internal'))) {
+        console.warn('Query completa falhou, a tentar query simplificada...', error.message);
+        const { data: simpleData } = await supabase
+          .from('profiles')
+          .select('*, school:schools!school_id(name, head_professor_id, payment_management_enabled)')
+          .eq('id', session.user.id)
+          .single();
+
+        if (simpleData) {
+          data = simpleData;
+          error = null;
+        } else {
+          // Tentativa 3: Query mínima apenas com dados do próprio perfil
+          const { data: minimalData, error: minimalError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          if (minimalData) {
+            data = minimalData;
+            error = null;
+          } else {
+            error = minimalError;
+          }
+        }
+      }
 
       // Se o perfil não existe (trigger falhou no registo), cria-o agora
       if (error && error.code === 'PGRST116') {
