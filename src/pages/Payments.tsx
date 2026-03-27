@@ -23,7 +23,6 @@ export default function Payments() {
 
     const isAdmin = profile?.role === 'Admin';
     const isProfessor = checkIsProfessor(profile?.role);
-    const isHeadProfessor = profile?.school?.head_professor_id === profile?.id;
 
     useEffect(() => {
         if (isAdmin || isProfessor) {
@@ -48,11 +47,8 @@ export default function Payments() {
             .order('full_name');
 
         if (checkIsProfessor(profile?.role)) {
-            if (isHeadProfessor) {
-                athletesQuery = athletesQuery.eq('school_id', profile.school_id);
-            } else {
-                athletesQuery = athletesQuery.eq('assigned_professor_id', profile.id);
-            }
+            // Professor vê atletas da sua escola OU associados a si
+            athletesQuery = athletesQuery.or(`school_id.eq.${profile.school_id},assigned_professor_id.eq.${profile.id}`);
         }
 
         const { data: athletesData } = await athletesQuery;

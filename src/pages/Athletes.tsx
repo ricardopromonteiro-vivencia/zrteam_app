@@ -72,13 +72,18 @@ export default function Athletes() {
         setLoading(true);
         let query = supabase
             .from('profiles')
-            .select('*, school:schools!school_id(name)')
+            .select(`
+                *,
+                school:schools!school_id(name),
+                assigned_professor:profiles!assigned_professor_id(full_name)
+            `)
             .neq('is_hidden', true);
 
-        if (isProfessor(myProfile?.role)) {
-            query = query.eq('school_id', myProfile.school_id);
-        } else if (isAdmin && selectedSchool !== 'all') {
+        if (selectedSchool !== 'all') {
             query = query.eq('school_id', selectedSchool);
+        } else if (isProfessor(myProfile?.role)) {
+            // Se for professor e estiver em "Todas as Escolas", mostra da sua escola OU associados a si
+            query = query.or(`school_id.eq.${myProfile.school_id},assigned_professor_id.eq.${myProfile.id}`);
         }
 
         const [{ data, error }, { data: faltasData }] = await Promise.all([
@@ -498,9 +503,7 @@ export default function Athletes() {
                                                 </span>
                                             </td>
                                             <td>
-                                                {athlete.assigned_professor_id
-                                                    ? (professors.find(p => p.id === athlete.assigned_professor_id)?.full_name || <span className="text-muted">—</span>)
-                                                    : <span className="text-muted">—</span>}
+                                                {athlete.assigned_professor?.full_name || (athlete.assigned_professor_id ? professors.find(p => p.id === athlete.assigned_professor_id)?.full_name : null) || <span className="text-muted">—</span>}
                                             </td>
                                             <td className="text-center">{athlete.degrees}°</td>
                                             <td className="text-center">{athlete.attended_classes}</td>

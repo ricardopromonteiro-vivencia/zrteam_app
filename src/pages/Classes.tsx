@@ -440,7 +440,7 @@ export default function Classes() {
                                     </div>
                                     <div className="class-details">
                                         <p><Clock size={16} /> {cls.start_time.substring(0, 5)} - {cls.end_time.substring(0, 5)}</p>
-                                        {filterSchool === 'all' && cls.school?.name && (
+                                        {(filterSchool === 'all' || cls.school_id !== profile?.school_id) && cls.school?.name && (
                                             <p style={{ color: 'var(--primary)', fontWeight: 500 }}>
                                                 🏢 {cls.school.name}
                                             </p>

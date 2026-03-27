@@ -77,7 +77,7 @@ export default function CheckIn() {
         setLoading(true);
         const { data } = await supabase
             .from('class_bookings')
-            .select('*, user_id(id, full_name, belt, degrees)')
+            .select('*, user_id(id, full_name, belt, degrees, school_id, schools!profiles_school_id_fkey(name))')
             .eq('class_id', cls.id)
             .order('created_at');
         if (data) setBookings(data);
@@ -358,7 +358,14 @@ export default function CheckIn() {
                                     <div key={booking.id} className={`booking-row status-${booking.status.toLowerCase()}`}>
                                         <div className="booking-info">
                                             <span className="booking-name">{booking.user_id?.full_name}</span>
-                                            <span className="booking-belt">{booking.user_id?.belt} | {booking.user_id?.degrees} Grau(s)</span>
+                                            <span className="booking-belt">
+                                                {booking.user_id?.belt} | {booking.user_id?.degrees} Grau(s)
+                                                {booking.user_id?.schools?.name && booking.user_id?.school_id !== selectedClass?.school_id && (
+                                                    <span style={{ marginLeft: '0.5rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                                        • 🏢 {booking.user_id.schools.name}
+                                                    </span>
+                                                )}
+                                            </span>
                                         </div>
                                         <div className="booking-actions">
                                             <span className={`status-badge status-${booking.status.toLowerCase()}`}>

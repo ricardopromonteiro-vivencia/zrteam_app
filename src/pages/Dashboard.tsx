@@ -76,7 +76,7 @@ export default function Dashboard() {
     // 2. Próximas aulas marcadas
     const qNextClasses = supabase
       .from('class_bookings')
-      .select(`id, status, classes (id, title, date, start_time, end_time)`)
+      .select(`id, status, classes (id, title, date, start_time, end_time, school:schools(name))`)
       .eq('user_id', profile.id)
       .eq('status', 'Marcado')
       .gte('classes.date', today)
@@ -1391,6 +1391,11 @@ export default function Dashboard() {
                         <h4>{cls.title}</h4>
                         <p><Calendar size={12} /> {cls.date}</p>
                         <p><Clock size={12} /> {cls.start_time?.substring(0, 5) || '--:--'}</p>
+                        {cls.school?.name && (
+                          <p style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                            🏢 {cls.school.name}
+                          </p>
+                        )}
                       </div>
                       <div className="agenda-actions">
                         <div className="dropdown">
