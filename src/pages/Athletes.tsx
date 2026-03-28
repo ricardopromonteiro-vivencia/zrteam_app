@@ -48,7 +48,7 @@ export default function Athletes() {
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
     const isAdmin = myProfile?.role === 'Admin';
-    const canManageAllSchool = isAdmin || isProfessor(myProfile?.role);
+    const canManageAllSchool = isAdmin; // Professores apenas vêem a sua escola
 
     const [schools, setSchools] = useState<any[]>([]);
     const [professors, setProfessors] = useState<any[]>([]);
@@ -82,8 +82,12 @@ export default function Athletes() {
         if (selectedSchool !== 'all') {
             query = query.eq('school_id', selectedSchool);
         } else if (isProfessor(myProfile?.role)) {
-            // Se for professor e estiver em "Todas as Escolas", mostra da sua escola OU associados a si
-            query = query.or(`school_id.eq.${myProfile.school_id},assigned_professor_id.eq.${myProfile.id}`);
+            // Professor vê todos os atletas da sua escola
+            if (myProfile?.school_id) {
+                query = query.eq('school_id', myProfile.school_id);
+            } else {
+                query = query.eq('assigned_professor_id', myProfile.id);
+            }
         }
 
         const [{ data, error }, { data: faltasData }] = await Promise.all([

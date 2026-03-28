@@ -179,17 +179,19 @@ export default function Dashboard() {
       // Athlete Count
       let athleteQuery = supabase
         .from('profiles')
-        .select('*', { count: 'exact', head: true })
+        .select('id')
         .eq('role', 'Atleta')
         .eq('is_archived', false);
-      if (isProfessor(profile.role) && profile.school_id) {
-        athleteQuery = athleteQuery.eq('school_id', profile.school_id);
+        
+      if (isProfessor(profile.role)) {
+        athleteQuery = athleteQuery.eq('assigned_professor_id', profile.id);
       } else if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
         athleteQuery = athleteQuery.eq('school_id', adminFilterSchool);
       }
+      
       promises.push((async () => {
         const res = await athleteQuery;
-        athleteCount = res.count || 0;
+        athleteCount = res.data?.length || 0;
       })());
 
       // Absent Athletes
