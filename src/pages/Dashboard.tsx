@@ -97,7 +97,9 @@ export default function Dashboard() {
     let faltasCount = 0;
     let eventData: any = null;
     let rankData: any = null;
+    let rankHistData: any = null;
     let awardsData: any = null;
+    let awardsHistData: any = null;
     let lastPresence: any = null;
     let externalEventData: any = null;
 
@@ -285,6 +287,27 @@ export default function Dashboard() {
       rankData = res.data;
     })());
 
+    // Histórico do ranking semanal (4 semanas anteriores → desempate)
+    const rankHistEnd = new Date(weekStart);
+    rankHistEnd.setDate(weekStart.getDate() - 1);
+    const rankHistStart = new Date(rankHistEnd);
+    rankHistStart.setDate(rankHistEnd.getDate() - 27);
+    let rankingHistQuery = supabase.from('class_bookings')
+      .select('user_id, profiles!inner(school_id, is_hidden), classes!inner(date, school_id)')
+      .eq('status', 'Presente')
+      .gte('classes.date', rankHistStart.toISOString().split('T')[0])
+      .lte('classes.date', rankHistEnd.toISOString().split('T')[0])
+      .eq('profiles.is_hidden', false);
+    if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
+        rankingHistQuery = (rankingHistQuery as any).eq('profiles.school_id', adminFilterSchool);
+    } else if (profile.role !== 'Admin' && profile.school_id) {
+        rankingHistQuery = (rankingHistQuery as any).eq('profiles.school_id', profile.school_id);
+    }
+    promises.push((async () => {
+      const res = await rankingHistQuery;
+      rankHistData = res.data;
+    })());
+
     const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const prevMonthStart = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), 1).toISOString().split('T')[0];
     const prevMonthEnd = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1, 0).toISOString().split('T')[0];
@@ -305,6 +328,25 @@ export default function Dashboard() {
     promises.push((async () => {
       const res = await awardsQuery;
       awardsData = res.data;
+    })());
+
+    // Histórico de premiação (3 meses anteriores → desempate)
+    const awardsHistEndDate = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), 0); // último dia do mês anterior a prevMonth
+    const awardsHistStartDate = new Date(awardsHistEndDate.getFullYear(), awardsHistEndDate.getMonth() - 2, 1);
+    let awardsHistQuery = supabase.from('class_bookings')
+      .select('user_id, profiles!inner(school_id, is_hidden), classes!inner(date, school_id)')
+      .eq('status', 'Presente')
+      .gte('classes.date', awardsHistStartDate.toISOString().split('T')[0])
+      .lte('classes.date', awardsHistEndDate.toISOString().split('T')[0])
+      .eq('profiles.is_hidden', false);
+    if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
+        awardsHistQuery = (awardsHistQuery as any).eq('profiles.school_id', adminFilterSchool);
+    } else if (profile.role !== 'Admin' && profile.school_id) {
+        awardsHistQuery = (awardsHistQuery as any).eq('profiles.school_id', profile.school_id);
+    }
+    promises.push((async () => {
+      const res = await awardsHistQuery;
+      awardsHistData = res.data;
     })());
 
     // --- AGUARDAR TODAS AS QUERIES EM PARALELO ---
@@ -374,23 +416,43 @@ export default function Dashboard() {
     setNextExternalEvent(externalEventData || null);
 
     if (rankData) {
-      const counts: Record<string, { full_name: string; role: string; belt: string; count: number }> = {};
+      const counts: Record<string, { full_name: string; role: string; belt: string; count: number; tiebreaker: number }> = {};
       rankData.forEach((r: any) => {
         const uid = r.user_id;
-        if (!counts[uid]) counts[uid] = { full_name: r.profiles.full_name, role: r.profiles.role, belt: r.profiles.belt, count: 0 };
+        if (!counts[uid]) counts[uid] = { full_name: r.profiles.full_name, role: r.profiles.role, belt: r.profiles.belt, count: 0, tiebreaker: 0 };
         counts[uid].count++;
       });
-      setWeeklyRanking(Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 10));
+      // Calcular tiebreaker com histórico das 4 semanas anteriores
+      if (rankHistData) {
+        rankHistData.forEach((r: any) => {
+          if (counts[r.user_id]) counts[r.user_id].tiebreaker++;
+        });
+      }
+      setWeeklyRanking(
+        Object.values(counts)
+          .sort((a, b) => b.count !== a.count ? b.count - a.count : b.tiebreaker - a.tiebreaker)
+          .slice(0, 10)
+      );
     } else setWeeklyRanking([]);
 
     if (awardsData) {
-      const awardCounts: Record<string, { full_name: string; role: string; belt: string; count: number }> = {};
+      const awardCounts: Record<string, { full_name: string; role: string; belt: string; count: number; tiebreaker: number }> = {};
       awardsData.forEach((r: any) => {
         const uid = r.user_id;
-        if (!awardCounts[uid]) awardCounts[uid] = { full_name: r.profiles.full_name, role: r.profiles.role, belt: r.profiles.belt, count: 0 };
+        if (!awardCounts[uid]) awardCounts[uid] = { full_name: r.profiles.full_name, role: r.profiles.role, belt: r.profiles.belt, count: 0, tiebreaker: 0 };
         awardCounts[uid].count++;
       });
-      setMonthlyAwards(Object.values(awardCounts).sort((a, b) => b.count - a.count).slice(0, 5));
+      // Calcular tiebreaker com histórico dos 3 meses anteriores
+      if (awardsHistData) {
+        awardsHistData.forEach((r: any) => {
+          if (awardCounts[r.user_id]) awardCounts[r.user_id].tiebreaker++;
+        });
+      }
+      setMonthlyAwards(
+        Object.values(awardCounts)
+          .sort((a, b) => b.count !== a.count ? b.count - a.count : b.tiebreaker - a.tiebreaker)
+          .slice(0, 5)
+      );
     } else setMonthlyAwards([]);
 
     setLoading(false);

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import {
   LogOut, Home, Calendar, Users, Activity, Settings,
   ShieldCheck, Menu, X, Building2, HelpCircle, Download, CreditCard, Megaphone, UserCheck,
-  Bell, BellOff, CalendarDays, Folder, ListChecks, ShoppingBag, Package, ShoppingCart, Trophy
+  Bell, BellOff, CalendarDays, Folder, ListChecks, ShoppingBag, Package, ShoppingCart, Trophy, BarChart2
 } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { usePushNotifications } from '../hooks/usePushNotifications';
@@ -290,6 +290,7 @@ export default function Layout() {
         title: '📊 Principal',
         items: [
           { name: 'Dashboard', path: '/dashboard', icon: Activity },
+          { name: 'Rankings', path: '/rankings', icon: BarChart2 },
           { name: 'Eventos Externos', path: '/admin/eventos-externos', icon: Trophy },
           { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
           { name: 'Eventos', path: '/eventos', icon: CalendarDays, badge: hasUnreadEvents },
@@ -334,6 +335,7 @@ export default function Layout() {
         title: '📊 Principal',
         items: [
           { name: 'Dashboard', path: '/dashboard', icon: Activity },
+          ...(profile?.school?.head_professor_id === profile?.id ? [{ name: 'Rankings', path: '/rankings', icon: BarChart2 }] : []),
           { name: 'Avisos', path: '/avisos', icon: Megaphone, badge: hasUnreadAnnouncements },
           { name: 'Eventos', path: '/eventos', icon: CalendarDays, badge: hasUnreadEvents },
         ]

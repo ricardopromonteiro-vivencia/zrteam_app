@@ -3,20 +3,166 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/png" href="/src/assets/logo.png" />
+  <link rel="icon" type="image/png" href="/icons/icon-192x192.png" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ZR Team | Plataforma de Jiu-Jitsu</title>
   <meta name="description"
     content="Plataforma de gestão de aulas, presenças e graduações de Jiu-Jitsu. Acompanha a tua progressão, marca aulas e faz check-in via NFC." />
   <meta name="theme-color" content="#10b981" />
+  <!-- iOS PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ZR Team" />
+  <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
+
+  <style>
+    /* ========== SPLASH SCREEN ========== */
+    #zr-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: radial-gradient(ellipse at center, #0f2018 0%, #050c08 60%, #000 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2rem;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+
+    #zr-splash.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    /* Anel exterior com pulso lento */
+    .splash-ring {
+      position: relative;
+      width: 200px;
+      height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Ondas de pulso (tipo sonar / heartbeat) */
+    .splash-ring::before,
+    .splash-ring::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px solid rgba(16, 185, 129, 0.25);
+      animation: zr-sonar 2.4s ease-out infinite;
+    }
+
+    .splash-ring::after {
+      animation-delay: 1.2s;
+      border-color: rgba(16, 185, 129, 0.15);
+    }
+
+    @keyframes zr-sonar {
+      0%   { transform: scale(0.85); opacity: 1; }
+      100% { transform: scale(1.55); opacity: 0; }
+    }
+
+    /* Logo com batimento de coração */
+    .splash-logo {
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: white;
+      padding: 6px;
+      border: 3px solid rgba(16, 185, 129, 0.6);
+      box-shadow:
+        0 0 0 0 rgba(16, 185, 129, 0.5),
+        0 20px 60px rgba(0, 0, 0, 0.8);
+      animation: zr-heartbeat 1.6s ease-in-out infinite, zr-fadein 0.6s ease forwards;
+      transform-origin: center;
+    }
+
+    @keyframes zr-heartbeat {
+      0%   { transform: scale(1);    box-shadow: 0 0  0   0   rgba(16,185,129,0.5), 0 20px 60px rgba(0,0,0,0.8); }
+      14%  { transform: scale(1.07); box-shadow: 0 0  0   10px rgba(16,185,129,0.2), 0 20px 60px rgba(0,0,0,0.8); }
+      28%  { transform: scale(1);    box-shadow: 0 0  0   0   rgba(16,185,129,0),   0 20px 60px rgba(0,0,0,0.8); }
+      42%  { transform: scale(1.04); box-shadow: 0 0  0   6px rgba(16,185,129,0.15),0 20px 60px rgba(0,0,0,0.8); }
+      70%  { transform: scale(1);    box-shadow: 0 0  0   0   rgba(16,185,129,0),   0 20px 60px rgba(0,0,0,0.8); }
+      100% { transform: scale(1);    box-shadow: 0 0  0   0   rgba(16,185,129,0),   0 20px 60px rgba(0,0,0,0.8); }
+    }
+
+    @keyframes zr-fadein {
+      from { opacity: 0; transform: scale(0.88); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    /* Texto ZR Team */
+    .splash-title {
+      font-family: 'Inter', sans-serif;
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      animation: zr-fadein 0.8s 0.2s ease both;
+    }
+
+    .splash-subtitle {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: rgba(16, 185, 129, 0.8);
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      margin-top: -1.5rem;
+      animation: zr-fadein 0.8s 0.4s ease both;
+    }
+
+    /* Dots de loading */
+    .splash-dots {
+      display: flex;
+      gap: 0.5rem;
+      animation: zr-fadein 0.8s 0.6s ease both;
+    }
+
+    .splash-dots span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(16, 185, 129, 0.6);
+      animation: zr-dot 1.2s ease-in-out infinite;
+    }
+
+    .splash-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .splash-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes zr-dot {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+      40%            { transform: scale(1);   opacity: 1; }
+    }
+  </style>
 </head>
 
 <body>
+  <!-- Splash Screen (visível antes do React carregar) -->
+  <div id="zr-splash">
+    <div class="splash-ring">
+      <img class="splash-logo" src="/icons/icon-192x192.png" alt="ZR Team" />
+    </div>
+    <div class="splash-title">ZR Team</div>
+    <div class="splash-subtitle">Brazilian Jiu-Jitsu</div>
+    <div class="splash-dots">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>

@@ -1,5 +1,6 @@
 // Service Worker com auto-update para evitar erros de cache em novos deploys
-const CACHE_NAME = 'zrteam-v2';
+// ⚠️ Incrementa este número a cada deploy para forçar a atualização nos clientes
+const CACHE_NAME = 'zrteam-v3';
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',

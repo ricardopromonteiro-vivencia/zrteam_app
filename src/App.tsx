@@ -26,15 +26,16 @@ import MyOrders from './pages/MyOrders';
 import StoreManagement from './pages/admin/StoreManagement';
 import OrderManagement from './pages/admin/OrderManagement';
 import ExternalEvents from './pages/admin/ExternalEvents';
+import Rankings from './pages/Rankings';
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Auto-refresh logic (10 minutes)
+  // Auto-refresh ao voltar do background (2 minutos)
   useEffect(() => {
     let backgroundTime: number | null = null;
-    const TEN_MINUTES_MS = 10 * 60 * 1000;
+    const TWO_MINUTES_MS = 2 * 60 * 1000;
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -44,11 +45,28 @@ function App() {
         // App voltou a ser visível
         if (backgroundTime) {
           const timeInBackground = Date.now() - backgroundTime;
-          if (timeInBackground > TEN_MINUTES_MS) {
-            // Se passou demasiado tempo em background, força hard-refresh para puxar updates
-            window.location.reload();
-          }
           backgroundTime = null; // Reset
+
+          if (timeInBackground > TWO_MINUTES_MS) {
+            // Verifica se existe novo SW (novo deploy) antes de recarregar
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistration().then(reg => {
+                if (reg) {
+                  reg.update().then(() => {
+                    // O controllerchange em main.tsx trata do reload se houver update
+                    // Se não houver SW novo, recarregamos na mesma para refrescar sessão
+                    if (!reg.installing && !reg.waiting) {
+                      window.location.reload();
+                    }
+                  });
+                } else {
+                  window.location.reload();
+                }
+              }).catch(() => window.location.reload());
+            } else {
+              window.location.reload();
+            }
+          }
         }
       }
     };
@@ -65,6 +83,8 @@ function App() {
       }
       setSession(session);
       setLoading(false);
+      // Sinalizar ao splash screen que a app está pronta
+      window.dispatchEvent(new Event('zr:appready'));
     });
 
     const {
@@ -76,9 +96,8 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  if (loading) {
-    return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#121212', color: '#10b981' }}>A carregar o tatame...</div>;
-  }
+  // O splash screen serve de loading — não é necessário div extra
+  if (loading) return null;
 
   return (
     <Router>
@@ -114,6 +133,7 @@ function App() {
           <Route path="/admin/loja" element={<StoreManagement />} />
           <Route path="/admin/encomendas" element={<OrderManagement />} />
           <Route path="/admin/eventos-externos" element={<ExternalEvents />} />
+          <Route path="/rankings" element={<Rankings />} />
         </Route>
       </Routes>
     </Router>
