@@ -229,9 +229,23 @@ export default function Rankings() {
     fetchRanking();
   }, [fetchRanking]);
 
+  // Label do período com datas reais
   const getPeriodLabel = () => {
-    if (mode === 'weekly') return getWeekRange(weekOffset).label;
-    return getMonthRange(monthOffset).label;
+    const fmt = (d: string) => {
+      const [year, month, day] = d.split('-');
+      const date = new Date(Number(year), Number(month) - 1, Number(day));
+      return date.toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' }).replace('.', '');
+    };
+    if (mode === 'weekly') {
+      const w = getWeekRange(weekOffset);
+      return `Semana de ${fmt(w.start)} a ${fmt(w.end)}`;
+    }
+    const m = getMonthRange(monthOffset);
+    // Ex: 'Março de 2025'
+    const [year, month] = m.start.split('-');
+    const date = new Date(Number(year), Number(month) - 1, 1);
+    return date.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })
+      .replace(/^(.)/, c => c.toUpperCase());
   };
 
   const getSchoolName = () => {
@@ -246,32 +260,52 @@ export default function Rankings() {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const schoolName = getSchoolName();
     const periodLabel = getPeriodLabel();
-    const modeLabel = mode === 'weekly' ? 'Ranking Semanal' : 'Premiação Mensal';
+    const modeLabel = mode === 'weekly' ? 'Ranking Semanal' : 'Premiacao Mensal';
 
-    // Cabeçalho
-    doc.setFillColor(18, 18, 18);
-    doc.rect(0, 0, 210, 297, 'F');
+    // ── Cabeçalho — fundo BRANCO ──
+    // (sem rect de fundo escuro — o PDF usa branço por defeito)
 
+    // Linha decorativa no topo (verde)
+    doc.setFillColor(16, 185, 129);
+    doc.rect(0, 0, 210, 2, 'F');
+
+    // Título ZR Team
     doc.setTextColor(16, 185, 129);
-    doc.setFontSize(20);
+    doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
-    doc.text('ZR Team', 105, 18, { align: 'center' });
+    doc.text('ZR Team', 105, 16, { align: 'center' });
 
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(14);
-    doc.text(`🥋 ${modeLabel}`, 105, 27, { align: 'center' });
+    // Subtitulo (sem emoji — não é suportado pelo jsPDF)
+    doc.setTextColor(30, 30, 30);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text(modeLabel, 105, 25, { align: 'center' });
 
-    doc.setTextColor(160, 160, 160);
+    // Escola
+    doc.setTextColor(80, 80, 80);
     doc.setFontSize(10);
-    doc.text(schoolName, 105, 34, { align: 'center' });
-    doc.text(periodLabel, 105, 40, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.text(schoolName, 105, 33, { align: 'center' });
 
+    // Período
+    doc.setTextColor(50, 50, 50);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.text(periodLabel, 105, 39, { align: 'center' });
+
+    // Linha separadora
     doc.setDrawColor(16, 185, 129);
-    doc.setLineWidth(0.4);
-    doc.line(14, 44, 196, 44);
+    doc.setLineWidth(0.5);
+    doc.line(14, 43, 196, 43);
+
+    // Data de geração (canto inferior direito)
+    doc.setTextColor(160, 160, 160);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Gerado em ${new Date().toLocaleDateString('pt-PT')}`, 196, 43, { align: 'right', baseline: 'top' });
 
     const tableRows = ranking.map((entry, idx) => [
-      `${idx + 1}º`,
+      `${idx + 1}.`,
       entry.full_name,
       entry.belt,
       entry.role,
@@ -279,29 +313,30 @@ export default function Rankings() {
     ]);
 
     autoTable(doc, {
-      startY: 48,
+      startY: 47,
       head: [['#', 'Nome', 'Faixa', 'Função', 'Presenças']],
       body: tableRows,
-      theme: 'grid',
+      theme: 'striped',
       styles: {
         fontSize: 9,
         cellPadding: 3,
-        fillColor: [30, 30, 30],
-        textColor: [230, 230, 230],
-        lineColor: [60, 60, 60],
+        fillColor: [255, 255, 255],
+        textColor: [30, 30, 30],
+        lineColor: [220, 220, 220],
+        lineWidth: 0.2,
       },
       headStyles: {
         fillColor: [16, 185, 129],
-        textColor: [10, 10, 10],
+        textColor: [255, 255, 255],
         fontStyle: 'bold',
         fontSize: 9,
       },
       alternateRowStyles: {
-        fillColor: [22, 22, 22],
+        fillColor: [245, 250, 247], // verde muito claro
       },
       columnStyles: {
-        0: { cellWidth: 12, halign: 'center' },
-        4: { cellWidth: 22, halign: 'center' },
+        0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
+        4: { cellWidth: 24, halign: 'center', fontStyle: 'bold' },
       },
     });
 
