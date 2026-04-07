@@ -279,6 +279,8 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Push: notificar quando novo aviso é publicado
+-- ✅ FIX 2026-04-07: avisos com target_user_id (ex: lembretes de pagamento)
+--    enviam push APENAS ao utilizador visado, não aos gestores da escola.
 CREATE OR REPLACE FUNCTION public.notify_push_on_announcement()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
@@ -292,17 +294,31 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN RETURN NEW; END;
   IF service_role_key IS NULL THEN RETURN NEW; END IF;
 
-  IF NEW.school_id IS NOT NULL THEN
+  -- Prioridade: aviso privado → utilizador; aviso de escola → gestores; global → todos
+  IF NEW.target_user_id IS NOT NULL THEN
+    -- Aviso privado (ex: lembrete de pagamento) → push só para o destinatário
+    target_payload := jsonb_build_object('user_id', NEW.target_user_id);
+  ELSIF NEW.school_id IS NOT NULL THEN
+    -- Aviso público de escola → push para gestores da escola (Admin + Prof. Responsável)
     target_payload := jsonb_build_object('school_id', NEW.school_id);
   ELSE
-    target_payload := '"all"'::jsonb;
+    -- Aviso global → push para todos os utilizadores
+    target_payload := '\"all\"'::jsonb;
   END IF;
 
   BEGIN
     PERFORM net.http_post(
       url := supabase_url || '/functions/v1/send-push-notification',
-      headers := jsonb_build_object('Content-Type','application/json','Authorization','Bearer ' || service_role_key),
-      body := jsonb_build_object('target', target_payload, 'title', NEW.title, 'body', LEFT(NEW.content, 100), 'url', '/avisos')::text::jsonb
+      headers := jsonb_build_object(
+        'Content-Type',  'application/json',
+        'Authorization', 'Bearer ' || service_role_key
+      ),
+      body := jsonb_build_object(
+        'target', target_payload,
+        'title',  NEW.title,
+        'body',   LEFT(NEW.content, 100),
+        'url',    '/avisos'
+      )::text::jsonb
     );
   EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'Push falhou: %', SQLERRM;

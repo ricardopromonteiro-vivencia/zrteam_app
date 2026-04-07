@@ -185,6 +185,22 @@ export default function Classes() {
                 }]);
             }
         } else {
+            // Verificar se já existe uma aula com o mesmo horário e escola (anti-duplicado)
+            const { data: existing } = await supabase
+                .from('classes')
+                .select('id, title')
+                .eq('date', classData.date)
+                .eq('start_time', classData.start_time)
+                .eq('school_id', classData.school_id)
+                .limit(1);
+
+            if (existing && existing.length > 0) {
+                const confirm_dup = confirm(
+                    `⚠️ Já existe uma aula "${existing[0].title}" nesta escola para ${new Date(classData.date + 'T12:00:00').toLocaleDateString('pt-PT')} às ${classData.start_time.substring(0, 5)}.\n\nTens a certeza que queres criar uma segunda aula no mesmo horário?`
+                );
+                if (!confirm_dup) return;
+            }
+
             const { error: insertError } = await supabase.from('classes').insert([classData]);
             error = insertError;
         }
