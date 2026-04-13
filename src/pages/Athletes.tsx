@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { isProfessor } from '../lib/roles';
 import { useOutletContext } from 'react-router-dom';
@@ -117,14 +117,17 @@ export default function Athletes() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedSchool, myProfile?.id]);
 
+    const scrollPosRef = useRef(0);
+
     async function archiveAthlete(id: string, archive: boolean) {
+        scrollPosRef.current = window.scrollY;
         const { error } = await supabase
             .from('profiles')
             .update({ is_archived: archive })
             .eq('id', id);
         if (!error) {
             setFeedback({ type: 'success', msg: archive ? 'Atleta arquivado.' : 'Atleta reativado!' });
-            fetchAthletes();
+            fetchAthletes().then(() => window.scrollTo(0, scrollPosRef.current));
         } else {
             setFeedback({ type: 'error', msg: 'Erro: ' + error.message });
         }
@@ -133,10 +136,11 @@ export default function Athletes() {
 
     async function deleteAthlete(athlete: Profile) {
         setDeleteConfirm(null);
+        scrollPosRef.current = window.scrollY;
         const { error } = await supabase.rpc('delete_user_and_auth', { user_id_param: athlete.id });
         if (!error) {
             setFeedback({ type: 'success', msg: `Conta de ${athlete.full_name} apagada permanentemente.` });
-            fetchAthletes();
+            fetchAthletes().then(() => window.scrollTo(0, scrollPosRef.current));
         } else {
             setFeedback({ type: 'error', msg: 'Erro ao apagar: ' + error.message });
         }
@@ -168,6 +172,7 @@ export default function Athletes() {
     async function saveEdit() {
         if (!editingId) return;
         setSaving(true);
+        scrollPosRef.current = window.scrollY;
         const { error } = await supabase
             .from('profiles')
             .update({
@@ -188,6 +193,7 @@ export default function Athletes() {
         } else {
             setFeedback({ type: 'success', msg: 'Perfil atualizado com sucesso!' });
             await fetchAthletes();
+            window.scrollTo(0, scrollPosRef.current);
             cancelEdit();
         }
         setSaving(false);
@@ -657,6 +663,7 @@ export default function Athletes() {
         .athletes-table-wrapper {
           background: var(--bg-card); border: 1px solid var(--border);
           border-radius: 1rem; overflow: auto;
+          max-height: calc(100vh - 220px);
         }
         .athletes-table {
           width: 100%; border-collapse: collapse; font-size: 0.875rem;
@@ -666,6 +673,11 @@ export default function Athletes() {
           font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
           letter-spacing: 0.05em; color: var(--text-muted);
           border-bottom: 1px solid var(--border);
+          position: sticky; top: 0; z-index: 3;
+          background: var(--bg-card);
+        }
+        .athletes-table th:first-child {
+          left: 0; z-index: 4;
         }
         .athletes-table td {
           padding: 0.875rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.04);
@@ -675,6 +687,17 @@ export default function Athletes() {
         .athletes-table tr:hover td { background: rgba(255,255,255,0.02); }
         .editing-row td { background: rgba(16,185,129,0.05) !important; }
         .athlete-name { font-weight: 600; }
+        /* Sticky first column (Nome) */
+        .athletes-table td:first-child,
+        .athletes-table th:first-child {
+          position: sticky;
+          left: 0;
+          background: var(--bg-card);
+          z-index: 2;
+          box-shadow: 2px 0 6px -2px rgba(0,0,0,0.4);
+        }
+        .athletes-table tr:hover td:first-child { background: #1e2025; }
+        .editing-row td:first-child { background: rgba(16,185,129,0.08) !important; }
         .text-center { text-align: center; }
         .text-muted { color: var(--text-muted); }
         .belt-chip { display: flex; align-items: center; gap: 0.5rem; }

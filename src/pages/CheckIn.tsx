@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { isProfessor as checkIsProfessor } from '../lib/roles';
@@ -15,6 +15,7 @@ export default function CheckIn() {
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(false);
     const [pendingAthleteConfirm, setPendingAthleteConfirm] = useState<any>(null);
+    const scrollPosRef = useRef(0);
 
     const isAdmin = profile?.role === 'Admin';
     const isProfessor = checkIsProfessor(profile?.role);
@@ -87,6 +88,7 @@ export default function CheckIn() {
     // Check-in manual pelo professor
     const handleManualCheckIn = async (bookingId: string, userId: string) => {
         // 1. Marcar como Presente
+        scrollPosRef.current = window.scrollY;
         const { error } = await supabase
             .from('class_bookings')
             .update({ status: 'Presente' })
@@ -96,7 +98,8 @@ export default function CheckIn() {
             // 2. Incrementar contador de aulas do atleta
             await supabase.rpc('increment_attended_classes', { user_id_param: userId });
             // Refrescar lista
-            loadBookings(selectedClass);
+            await loadBookings(selectedClass);
+            window.scrollTo(0, scrollPosRef.current);
         } else {
             alert('Erro ao registar presença: ' + error.message);
         }
@@ -130,7 +133,9 @@ export default function CheckIn() {
         }
 
         alert(`${noShows.length} falta(s) registada(s). ${penalties > 0 ? `\n⚠️ ${penalties} penalização(ões) aplicada(s) (perderam 1 aula).` : ''}`);
-        loadBookings(selectedClass);
+        scrollPosRef.current = window.scrollY;
+        await loadBookings(selectedClass);
+        window.scrollTo(0, scrollPosRef.current);
     };
 
     // Solicita confirmação antes de fazer check-in rápido
@@ -171,6 +176,7 @@ export default function CheckIn() {
     // Reverter Check-in: de Presente → Marcado, subtrai a presença
     const handleRevertCheckIn = async (booking: any) => {
         if (!confirm(`Reverter check-in de ${booking.user_id?.full_name}?`)) return;
+        scrollPosRef.current = window.scrollY;
         setLoading(true);
         // Decrementar contagem
         await supabase.rpc('decrement_attended_classes', { user_id_param: booking.user_id?.id });
@@ -180,7 +186,8 @@ export default function CheckIn() {
             .update({ status: 'Marcado' })
             .eq('id', booking.id);
         if (!error) {
-            loadBookings(selectedClass);
+            await loadBookings(selectedClass);
+            window.scrollTo(0, scrollPosRef.current);
         } else {
             alert('Erro ao reverter: ' + error.message);
         }
@@ -191,6 +198,7 @@ export default function CheckIn() {
     // Remover inscrição (mesmo que Presente)
     const handleRemoveBooking = async (booking: any) => {
         if (!confirm(`Remover ${booking.user_id?.full_name} desta aula?`)) return;
+        scrollPosRef.current = window.scrollY;
         setLoading(true);
         if (booking.status === 'Presente') {
             await supabase.rpc('decrement_attended_classes', { user_id_param: booking.user_id?.id });
@@ -200,7 +208,8 @@ export default function CheckIn() {
             .delete()
             .eq('id', booking.id);
         if (!error) {
-            loadBookings(selectedClass);
+            await loadBookings(selectedClass);
+            window.scrollTo(0, scrollPosRef.current);
         } else {
             alert('Erro ao remover: ' + error.message);
         }

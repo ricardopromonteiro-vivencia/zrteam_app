@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { isProfessor as checkIsProfessor } from '../lib/roles';
 import { useOutletContext } from 'react-router-dom';
@@ -66,8 +66,12 @@ export default function Payments() {
         setLoading(false);
     }
 
+    const scrollPosRef = useRef(0);
+
     async function togglePayment(athleteId: string, currentStatus: string | undefined) {
         if (!isAdmin && !isProfessor) return;
+
+        scrollPosRef.current = window.scrollY;
 
         if (currentStatus === 'Pago') {
             // Se já está pago, talvez queira marcar como pendente ou apagar
@@ -79,7 +83,7 @@ export default function Payments() {
                 .eq('month', selectedMonth)
                 .eq('year', selectedYear);
 
-            if (!error) fetchData();
+            if (!error) fetchData().then(() => window.scrollTo(0, scrollPosRef.current));
         } else {
             // Marcar como pago
             const { error } = await supabase
@@ -92,7 +96,7 @@ export default function Payments() {
                     school_id: athletes.find(a => a.id === athleteId)?.school_id
                 }]);
 
-            if (!error) fetchData();
+            if (!error) fetchData().then(() => window.scrollTo(0, scrollPosRef.current));
             else alert('Erro ao registar pagamento: ' + error.message);
         }
     }

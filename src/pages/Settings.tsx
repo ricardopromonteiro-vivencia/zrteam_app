@@ -29,6 +29,14 @@ export default function Settings() {
     useEffect(() => {
         async function fetchPaymentStatus() {
             if (!profile?.id) return;
+
+            // Escolas com pagamento externo (payment_management_enabled === false)
+            // estão automaticamente isentas — sem necessidade de verificar a BD
+            if (profile?.school?.payment_management_enabled === false) {
+                setPaymentStatus('Pago');
+                return;
+            }
+
             const now = new Date();
             const month = now.getMonth() + 1; // 1-12
             const year = now.getFullYear();

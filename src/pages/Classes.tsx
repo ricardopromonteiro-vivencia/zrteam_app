@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Plus, Users, Calendar, Clock, Trash2, CheckCircle, Edit2, FileSpreadsheet, FileText, CreditCard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -83,7 +83,7 @@ export default function Classes() {
         fetchData();
     }, []);
 
-    const fetchData = async () => {
+    const fetchData = async (): Promise<void> => {
         setLoading(true);
 
         // 1. Buscar escolas e professores (escolas para todos, professores para o form de admins)
@@ -118,20 +118,27 @@ export default function Classes() {
         if (bookingData) setUserBookings(bookingData.map(b => b.class_id));
 
         // Verificar bloqueio de pagamento para Atletas (a partir do dia 11)
+        // Escolas com payment_management_enabled === false nunca bloqueiam — isenção total
         if (profile?.role === 'Atleta') {
-            const today = new Date();
-            if (today.getDate() >= 11) {
-                const { data: payment } = await supabase
-                    .from('payments')
-                    .select('id')
-                    .eq('athlete_id', profile.id)
-                    .eq('month', today.getMonth() + 1)
-                    .eq('year', today.getFullYear())
-                    .eq('status', 'Pago')
-                    .limit(1);
-                setPaymentBlocked(!payment || payment.length === 0);
-            } else {
+            const paymentOff = profile?.school?.payment_management_enabled === false;
+            if (paymentOff) {
+                // Escola com pagamento externo — atleta sempre isento, nunca bloqueado
                 setPaymentBlocked(false);
+            } else {
+                const today = new Date();
+                if (today.getDate() >= 11) {
+                    const { data: payment } = await supabase
+                        .from('payments')
+                        .select('id')
+                        .eq('athlete_id', profile.id)
+                        .eq('month', today.getMonth() + 1)
+                        .eq('year', today.getFullYear())
+                        .eq('status', 'Pago')
+                        .limit(1);
+                    setPaymentBlocked(!payment || payment.length === 0);
+                } else {
+                    setPaymentBlocked(false);
+                }
             }
         }
 
@@ -247,6 +254,8 @@ export default function Classes() {
         setShowModal(true);
     };
 
+    const scrollPositionRef = useRef(0);
+
     const handleBooking = async (classId: string) => {
         const isEnrolled = userBookings.includes(classId);
 
@@ -254,6 +263,7 @@ export default function Classes() {
             // Cancelar inscrição
             if (!confirm('Queres desmarcar esta aula?')) return;
 
+            scrollPositionRef.current = window.scrollY;
             const { error } = await supabase
                 .from('class_bookings')
                 .delete()
@@ -264,10 +274,11 @@ export default function Classes() {
                 alert('Erro ao desmarcar: ' + error.message);
             } else {
                 setUserBookings(prev => prev.filter(id => id !== classId));
-                fetchData(); // Recarregar para atualizar vagas
+                fetchData().then(() => window.scrollTo(0, scrollPositionRef.current));
             }
         } else {
             // Inscrever
+            scrollPositionRef.current = window.scrollY;
             const { error } = await supabase.from('class_bookings').insert([
                 { class_id: classId, user_id: profile.id, status: 'Marcado' }
             ]);
@@ -280,7 +291,7 @@ export default function Classes() {
                 }
             } else {
                 setUserBookings(prev => [...prev, classId]);
-                fetchData(); // Recarregar para atualizar vagas
+                fetchData().then(() => window.scrollTo(0, scrollPositionRef.current));
             }
         }
     };
