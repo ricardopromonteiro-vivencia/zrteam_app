@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Plus, Users, Calendar, Clock, Trash2, CheckCircle, Edit2, FileSpreadsheet, FileText, CreditCard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { isProfessor } from '../lib/roles';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
