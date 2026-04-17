@@ -29,6 +29,8 @@ export default function ExternalEvents() {
 
   async function fetchEvents() {
     setLoading(true);
+    // Limpar eventos expirados antes de recarregar a lista
+    await supabase.rpc('cleanup_expired_external_events');
     const { data } = await supabase
       .from('external_events')
       .select('*')

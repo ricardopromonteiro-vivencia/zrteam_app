@@ -77,7 +77,10 @@ export default function Classes() {
         }
     }, [profile, filterSchool]);
 
-    const isAdmin = profile?.role === 'Admin' || isProfessor(profile?.role);
+    // Apenas Admin e Professor Responsável podem criar/editar/apagar aulas
+    const canManageClasses = profile?.role === 'Admin' || profile?.role === 'Professor Responsável';
+    // isAdmin mantido para retro-compatibilidade (ver inscritos, etc.)
+    const isAdmin = canManageClasses;
 
     useEffect(() => {
         fetchData();
@@ -147,7 +150,7 @@ export default function Classes() {
 
     const handleSubmitClass = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!isAdmin) return;
+        if (!canManageClasses) return;
 
         // Determinar escola e professor
         const finalSchoolId = profile?.role === 'Admin' ? selectedSchoolId : profile.school_id;
@@ -378,7 +381,7 @@ export default function Classes() {
                     <h1 className="page-title">{isAdmin ? 'Gestão de Aulas' : 'Aulas Disponíveis'}</h1>
                     <p className="text-muted">Planeia a tua semana de treinos no tatame.</p>
                 </div>
-                {isAdmin && (
+                {canManageClasses && (
                     <button className="btn-primary w-auto" onClick={handleOpenCreateModal}>
                         <Plus size={20} /> Nova Aula
                     </button>
@@ -454,7 +457,7 @@ export default function Classes() {
                                 <div key={cls.id} className={`class-card ${isEnrolled ? 'enrolled' : ''}`}>
                                     <div className="class-header">
                                         <h3>{cls.title}</h3>
-                                        {isAdmin && (profile?.role === 'Admin' || cls.professor_id?.id === profile?.id) && (
+                                        {canManageClasses && (profile?.role === 'Admin' || cls.school_id === profile?.school_id) && (
                                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                 <button onClick={() => handleOpenEditModal(cls)} className="btn-icon">
                                                     <Edit2 size={18} />
@@ -585,7 +588,7 @@ export default function Classes() {
                 </div>
             )}
 
-            {showModal && isAdmin && (
+            {showModal && canManageClasses && (
                 <div className="modal-overlay">
                     <div className="modal-content animate-fade-in">
                         <h2>{editingClass ? 'Editar Aula' : 'Agendar Nova Aula'}</h2>
