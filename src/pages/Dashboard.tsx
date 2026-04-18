@@ -368,7 +368,13 @@ export default function Dashboard() {
     }));
 
     if (profile.role !== 'Atleta') {
-       if (absentData) setAbsentAthletes((absentData || []).filter((a: { is_hidden?: boolean }) => !a.is_hidden));
+       if (absentData) {
+         setAbsentAthletes(
+           (absentData || [])
+             .filter((a: { is_hidden?: boolean }) => !a.is_hidden)
+             .sort((a: any, b: any) => b.days_absent - a.days_absent)
+         );
+       }
        
        let weeklyAttendance: { day: string; count: number }[] = [];
        if (attendanceData) {
@@ -478,6 +484,33 @@ export default function Dashboard() {
       });
     }
   }, [profile, absentFilterDays, adminFilterSchool, fetchDashboardData]);
+
+  const exportInactivePDF = () => {
+    if (absentAthletes.length === 0) {
+      alert('Não há atletas inativos para exportar.');
+      return;
+    }
+
+    const doc = new jsPDF();
+    doc.text(`Relatório de Retenção (Inativos) - ${new Date().toLocaleDateString('pt-PT')}`, 14, 15);
+
+    const tableColumn = ["Nome", "Cinto", "Escola", "Dias sem treinar"];
+    const tableRows = absentAthletes.map((a: any) => [
+      a.full_name,
+      a.belt,
+      a.school_name || 'N/A',
+      a.days_absent
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 20,
+    });
+
+    const filename = `Retencao_Inativos_${absentFilterDays}_dias_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(filename);
+  };
 
   const exportHistoryPDF = async () => {
     setLoading(true);
@@ -927,14 +960,25 @@ export default function Dashboard() {
           <div className="admin-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <h3 className="admin-card-title" style={{ margin: 0 }}>⚠️ Retenção (Inativos)</h3>
-              <select
-                value={absentFilterDays}
-                onChange={(e) => setAbsentFilterDays(Number(e.target.value))}
-                style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.3rem 0.5rem', borderRadius: '0.5rem', fontSize: '0.75rem', outline: 'none' }}
-              >
-                <option value={7}>{'> 1 Semana'}</option>
-                <option value={30}>{'> 1 Mês'}</option>
-              </select>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button 
+                  onClick={exportInactivePDF} 
+                  className="btn-export-mini" 
+                  title="Exportar inativos para PDF"
+                  style={{ padding: '0.2rem 0.5rem' }}
+                >
+                  <Download size={14} />
+                  <span style={{ fontSize: '0.7rem', marginLeft: '0.3rem', fontWeight: 600 }}>PDF</span>
+                </button>
+                <select
+                  value={absentFilterDays}
+                  onChange={(e) => setAbsentFilterDays(Number(e.target.value))}
+                  style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.3rem 0.5rem', borderRadius: '0.5rem', fontSize: '0.75rem', outline: 'none' }}
+                >
+                  <option value={7}>{'> 1 Semana'}</option>
+                  <option value={30}>{'> 1 Mês'}</option>
+                </select>
+              </div>
             </div>
             {absentAthletes.length === 0 ? (
               <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', paddingTop: '0.5rem' }}>Todos os atletas treinaram recentemente. Excelente!</p>
