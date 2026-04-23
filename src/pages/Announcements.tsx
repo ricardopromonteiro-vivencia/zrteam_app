@@ -32,7 +32,7 @@ export default function Announcements() {
         setLoading(true);
         let query = supabase
             .from('announcements')
-            .select('*, school:schools!school_id(name)')
+            .select('*, school:schools(name)')
             .order('created_at', { ascending: false });
 
         if (!isAdmin) {
