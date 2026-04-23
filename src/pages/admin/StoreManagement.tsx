@@ -72,16 +72,69 @@ export default function StoreManagement() {
         if (!error && data) {
             const productId = data.id;
             if (editingProduct.id) {
-                await supabase.from('store_product_variants').delete().eq('product_id', productId);
-            }
-            if (variants.length > 0) {
-                const variantsToInsert = variants.map(v => ({
-                    product_id: productId,
-                    size: v.size,
-                    color: v.color,
-                    stock_quantity: v.stock_quantity
-                }));
-                await supabase.from('store_product_variants').insert(variantsToInsert);
+                // Buscar variantes existentes na BD para preservar IDs
+                const { data: existingVariants } = await supabase
+                    .from('store_product_variants')
+                    .select('id, size, color, stock_quantity')
+                    .eq('product_id', productId);
+
+                const existingIds = new Set((existingVariants || []).map(v => v.id));
+                const currentIds = new Set(variants.filter(v => v.id).map(v => v.id));
+
+                // UPDATE das variantes existentes que foram modificadas
+                for (const v of variants) {
+                    if (v.id && existingIds.has(v.id)) {
+                        const existing = existingVariants?.find(ev => ev.id === v.id);
+                        if (existing && (
+                            existing.size !== v.size ||
+                            existing.color !== v.color ||
+                            existing.stock_quantity !== v.stock_quantity
+                        )) {
+                            await supabase
+                                .from('store_product_variants')
+                                .update({
+                                    size: v.size,
+                                    color: v.color,
+                                    stock_quantity: v.stock_quantity
+                                })
+                                .eq('id', v.id);
+                        }
+                    }
+                }
+
+                // INSERT de variantes novas (sem id)
+                const newVariants = variants.filter(v => !v.id);
+                if (newVariants.length > 0) {
+                    await supabase.from('store_product_variants').insert(
+                        newVariants.map(v => ({
+                            product_id: productId,
+                            size: v.size,
+                            color: v.color,
+                            stock_quantity: v.stock_quantity
+                        }))
+                    );
+                }
+
+                // DELETE das variantes que foram removidas pelo utilizador
+                const removedIds = [...existingIds].filter(id => !currentIds.has(id));
+                if (removedIds.length > 0) {
+                    await supabase
+                        .from('store_product_variants')
+                        .delete()
+                        .in('id', removedIds);
+                }
+            } else {
+                // Produto novo — inserir todas as variantes
+                if (variants.length > 0) {
+                    await supabase.from('store_product_variants').insert(
+                        variants.map(v => ({
+                            product_id: productId,
+                            size: v.size,
+                            color: v.color,
+                            stock_quantity: v.stock_quantity
+                        }))
+                    );
+                }
             }
             
             setEditingProduct(null);
