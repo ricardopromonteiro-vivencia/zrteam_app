@@ -17,6 +17,7 @@ export default function Layout() {
   const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
   const [hasUnreadEvents, setHasUnreadEvents] = useState(false);
   const [hasUnreadOrders, setHasUnreadOrders] = useState(false);
+  const [hasAvailableStockRequests, setHasAvailableStockRequests] = useState(false);
   const [pendingValidations, setPendingValidations] = useState(0);
   const { isSupported, isSubscribed, subscribe, unsubscribe } = usePushNotifications(profile?.id);
   const navigate = useNavigate();
@@ -224,6 +225,41 @@ export default function Layout() {
     }
   }, [profile, location.pathname]);
 
+  // Verificar pedidos especiais com stock agora disponível (badge para Atletas/Professores)
+  useEffect(() => {
+    if (!profile) return;
+    if (profile.role === 'Admin') return; // Admin não precisa deste badge
+    async function checkAvailableStockRequests() {
+      // Buscar todos os pedidos especiais pendentes do utilizador
+      const { data: specialOrders } = await supabase
+        .from('store_orders')
+        .select('id')
+        .eq('user_id', profile.id)
+        .eq('status', 'pendente')
+        .ilike('notes', 'encomenda_especial%');
+
+      if (!specialOrders || specialOrders.length === 0) {
+        setHasAvailableStockRequests(false);
+        return;
+      }
+
+      // Verificar se alguma variante tem stock agora
+      const orderIds = specialOrders.map(o => o.id);
+      const { data: items } = await supabase
+        .from('store_order_items')
+        .select('order_id, store_product_variants!inner(stock_quantity)')
+        .in('order_id', orderIds);
+
+      const anyAvailable = items?.some((i: any) => (i.store_product_variants?.stock_quantity || 0) > 0) ?? false;
+      setHasAvailableStockRequests(anyAvailable);
+    }
+    checkAvailableStockRequests();
+
+    if (location.pathname === '/minhas-encomendas') {
+      setHasAvailableStockRequests(false);
+    }
+  }, [profile, location.pathname]);
+
   // Verificar validações pendentes (para badge)
   useEffect(() => {
     if (!profile) return;
@@ -273,7 +309,7 @@ export default function Layout() {
         title: '🛍️ Loja',
         items: [
           { name: 'Loja', path: '/loja', icon: ShoppingBag },
-          { name: 'As Minhas Encomendas', path: '/minhas-encomendas', icon: Package },
+          { name: 'As Minhas Encomendas', path: '/minhas-encomendas', icon: Package, badge: hasAvailableStockRequests },
         ]
       },
       {
@@ -361,7 +397,7 @@ export default function Layout() {
         title: '🛍️ Loja',
         items: [
           { name: 'Loja', path: '/loja', icon: ShoppingBag },
-          { name: 'As Minhas Encomendas', path: '/minhas-encomendas', icon: Package },
+          { name: 'As Minhas Encomendas', path: '/minhas-encomendas', icon: Package, badge: hasAvailableStockRequests },
         ]
       },
       {
