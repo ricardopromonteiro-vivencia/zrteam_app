@@ -35,9 +35,8 @@ export default function Announcements() {
             .select('*, school:schools(name)')
             .order('created_at', { ascending: false });
 
-        if (!isAdmin) {
-            query = query.or(`target_user_id.is.null,target_user_id.eq.${profile.id}`);
-        }
+        // Todos os utilizadores (incluindo Admin) só vêm avisos públicos ou dirigidos a si
+        query = query.or(`target_user_id.is.null,target_user_id.eq.${profile.id}`);
 
         const { data } = await query;
 
