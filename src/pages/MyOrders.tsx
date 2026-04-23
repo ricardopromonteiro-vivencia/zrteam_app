@@ -146,11 +146,15 @@ export default function MyOrders() {
                 unit_price: item.unit_price
             });
 
-            // Cancelar o pedido especial original
-            await supabase
+            // Apagar o pedido especial original (os items são apagados em cascata pela FK)
+            const { error: deleteErr } = await supabase
                 .from('store_orders')
-                .update({ status: 'cancelado', notes: specialOrder.notes + ' [convertido]' })
+                .delete()
                 .eq('id', specialOrder.id);
+
+            if (deleteErr) {
+                console.error('Erro ao apagar pedido especial:', deleteErr);
+            }
 
             alert('✅ Encomenda criada com sucesso! Paga na tua escola para confirmar.');
             fetchMyOrders();
