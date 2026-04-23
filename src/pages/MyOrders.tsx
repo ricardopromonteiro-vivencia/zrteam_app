@@ -146,6 +146,15 @@ export default function MyOrders() {
                 unit_price: item.unit_price
             });
 
+            // Apagar o aviso de stock correspondente (para não ficar como spam)
+            const requestDetail = specialOrder.notes?.replace('encomenda_especial | ', '') || '';
+            await supabase
+                .from('announcements')
+                .delete()
+                .eq('target_user_id', profile.id)
+                .eq('type', 'system')
+                .ilike('content', `%${requestDetail}%`);
+
             // Apagar o pedido especial original (os items são apagados em cascata pela FK)
             const { error: deleteErr } = await supabase
                 .from('store_orders')
