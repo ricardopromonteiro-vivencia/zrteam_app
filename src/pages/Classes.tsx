@@ -755,9 +755,15 @@ export default function Classes() {
                 .calendar-menu a:hover { background: rgba(255,255,255,0.05); color: var(--primary); }
 
                 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 1rem; }
-                .modal-content { background-color: var(--bg-card); padding: 2rem; border-radius: 1rem; width: 100%; max-width: 500px; border: 1px solid var(--border); }
+                .modal-content { background-color: var(--bg-card); padding: 2rem; border-radius: 1rem; width: 100%; max-width: 500px; max-height: 90dvh; overflow-y: auto; border: 1px solid var(--border); }
                 .modal-content h2 { color: white; margin-bottom: 1.5rem; }
-                .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem; }
+                .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
+                .modal-actions .btn-primary, .modal-actions .btn-secondary { flex: 1; min-width: 120px; text-align: center; justify-content: center; }
+                @media (max-width: 480px) {
+                    .modal-content { padding: 1.25rem; border-radius: 0.75rem; max-height: 92dvh; }
+                    .modal-actions { flex-direction: column-reverse; }
+                    .modal-actions .btn-primary, .modal-actions .btn-secondary { width: 100%; }
+                }
 
                 .btn-view-bookings {
                     background: rgba(16, 185, 129, 0.1);
