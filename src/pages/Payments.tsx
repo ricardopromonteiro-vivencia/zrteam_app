@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { isProfessor as checkIsProfessor } from '../lib/roles';
 import { useOutletContext } from 'react-router-dom';
@@ -14,6 +14,7 @@ export default function Payments() {
     const [athletes, setAthletes] = useState<any[]>([]);
     const [payments, setPayments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const listContainerRef = useRef<HTMLDivElement>(null);
     const [search, setSearch] = useState('');
     const [filterUnpaid, setFilterUnpaid] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -29,6 +30,28 @@ export default function Payments() {
             fetchData();
         }
     }, [profile, selectedMonth, selectedYear]);
+
+    // Refresh silencioso: busca dados sem activar o spinner de loading (evita scroll jump)
+    const refreshDataSilently = useCallback(async () => {
+        const scrollTop = listContainerRef.current?.scrollTop ?? window.scrollY;
+
+        const paymentsResult = await supabase
+            .from('payments')
+            .select('*')
+            .eq('month', selectedMonth)
+            .eq('year', selectedYear);
+
+        if (paymentsResult.data) setPayments(paymentsResult.data);
+
+        // Restaurar scroll após o re-render
+        requestAnimationFrame(() => {
+            if (listContainerRef.current) {
+                listContainerRef.current.scrollTop = scrollTop;
+            } else {
+                window.scrollTo({ top: scrollTop, behavior: 'instant' as ScrollBehavior });
+            }
+        });
+    }, [selectedMonth, selectedYear]);
 
     async function fetchData() {
         setLoading(true);
@@ -66,15 +89,10 @@ export default function Payments() {
         setLoading(false);
     }
 
-    const scrollPosRef = useRef(0);
-
     async function togglePayment(athleteId: string, currentStatus: string | undefined) {
         if (!isAdmin && !isProfessor) return;
 
-        scrollPosRef.current = window.scrollY;
-
         if (currentStatus === 'Pago') {
-            // Se já está pago, talvez queira marcar como pendente ou apagar
             if (!confirm('Marcar este pagamento como pendente?')) return;
             const { error } = await supabase
                 .from('payments')
@@ -83,9 +101,15 @@ export default function Payments() {
                 .eq('month', selectedMonth)
                 .eq('year', selectedYear);
 
-            if (!error) fetchData().then(() => window.scrollTo(0, scrollPosRef.current));
+            if (!error) refreshDataSilently();
         } else {
-            // Marcar como pago
+            // Marcar como pago — actualização optimista imediata
+            setPayments(prev => [
+                ...prev.filter(p => !(p.athlete_id === athleteId && p.month === selectedMonth && p.year === selectedYear)),
+                { athlete_id: athleteId, month: selectedMonth, year: selectedYear, status: 'Pago',
+                  school_id: athletes.find(a => a.id === athleteId)?.school_id }
+            ]);
+
             const { error } = await supabase
                 .from('payments')
                 .insert([{
@@ -96,8 +120,11 @@ export default function Payments() {
                     school_id: athletes.find(a => a.id === athleteId)?.school_id
                 }]);
 
-            if (!error) fetchData().then(() => window.scrollTo(0, scrollPosRef.current));
-            else alert('Erro ao registar pagamento: ' + error.message);
+            if (error) {
+                // Reverter actualização optimista em caso de erro
+                setPayments(prev => prev.filter(p => !(p.athlete_id === athleteId && p.month === selectedMonth && p.year === selectedYear)));
+                alert('Erro ao registar pagamento: ' + error.message);
+            }
         }
     }
 
@@ -190,7 +217,7 @@ export default function Payments() {
             {loading ? (
                 <div className="loading-state">A carregar dados de pagamentos...</div>
             ) : (
-                <div className="athletes-list">
+                <div className="athletes-list" ref={listContainerRef}>
                     {filteredAthletes.map(athlete => {
                         const payment = payments.find(p => p.athlete_id === athlete.id);
                         const isPaid = payment?.status === 'Pago';
