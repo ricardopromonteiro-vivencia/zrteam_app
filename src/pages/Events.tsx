@@ -66,6 +66,8 @@ export default function Events() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loadingRegs, setLoadingRegs] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState('all'); // all, Pendente, Pago
+  const [searchRegs, setSearchRegs] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -263,8 +265,56 @@ export default function Events() {
     }
   }
 
-  // Exports
-  const filteredRegs = registrations.filter(r => paymentFilter === 'all' || r.payment_status === paymentFilter);
+  // Exports & Filters
+  const sortedRegs = useMemo(() => {
+    let filtered = registrations.filter(r => {
+      const matchPayment = paymentFilter === 'all' || r.payment_status === paymentFilter;
+      const q = searchRegs.toLowerCase().trim();
+      const matchSearch = !q || 
+          (r.profiles?.full_name || '').toLowerCase().includes(q) || 
+          (r.profiles?.school?.name || '').toLowerCase().includes(q) ||
+          (r.profiles?.role || '').toLowerCase().includes(q) ||
+          (r.profiles?.belt || '').toLowerCase().includes(q);
+      return matchPayment && matchSearch;
+    });
+
+    if (sortConfig !== null) {
+      filtered.sort((a, b) => {
+        let aValue = '', bValue = '';
+        switch (sortConfig.key) {
+          case 'atleta':
+            aValue = a.profiles?.full_name || '';
+            bValue = b.profiles?.full_name || '';
+            break;
+          case 'escola':
+            aValue = a.profiles?.school?.name || '';
+            bValue = b.profiles?.school?.name || '';
+            break;
+          case 'estado':
+            aValue = a.profiles?.role || '';
+            bValue = b.profiles?.role || '';
+            break;
+          case 'pagamento':
+            aValue = a.payment_status;
+            bValue = b.payment_status;
+            break;
+        }
+        
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return filtered;
+  }, [registrations, paymentFilter, searchRegs, sortConfig]);
+
+  const requestSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
 
   const exportPDF = () => {
     if (!currentEvent) return;
@@ -273,7 +323,7 @@ export default function Events() {
     
     autoTable(doc, {
       head: [['Nome', 'Escola', 'Faixa', 'Estado Pgt.']],
-      body: filteredRegs.map(r => [
+      body: sortedRegs.map(r => [
         r.profiles.full_name, 
         r.profiles.school?.name || '---', 
         r.profiles.belt, 
@@ -286,7 +336,7 @@ export default function Events() {
 
   const exportExcel = () => {
     if (!currentEvent) return;
-    const data = filteredRegs.map(r => ({
+    const data = sortedRegs.map(r => ({
       Nome: r.profiles.full_name,
       Escola: r.profiles.school?.name || '---',
       Faixa: r.profiles.belt,
@@ -485,9 +535,16 @@ export default function Events() {
                </div>
                
                <div className="regs-toolbar">
-                  <div className="filters">
+                  <div className="filters" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <input 
+                          type="text" 
+                          placeholder="Pesquisar atleta, escola..." 
+                          value={searchRegs}
+                          onChange={e => setSearchRegs(e.target.value)}
+                          style={{ background: 'var(--bg-dark)', color: 'white', border: '1px solid var(--border)', padding: '0.5rem', borderRadius: '0.5rem', outline: 'none' }}
+                      />
                       <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}>
-                          <option value="all">Ver Todos</option>
+                          <option value="all">Todos Pagamentos</option>
                           <option value="Pendente">Apenas Pendentes</option>
                           <option value="Pago">Apenas Pagos</option>
                       </select>
@@ -501,33 +558,41 @@ export default function Events() {
                {loadingRegs ? (
                    <p>A carregar inscritos...</p>
                ) : (
-                   <div className="table-container">
-                       <table className="data-table">
-                           <thead>
+                   <div className="table-container" style={{ maxHeight: '60vh', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '0.5rem' }}>
+                       <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                           <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>
                                <tr>
-                                   <th>Atleta</th>
-                                   <th>Escola / Faixa</th>
-                                   <th>Estado</th>
-                                   <th>Pagamento</th>
+                                   <th onClick={() => requestSort('atleta')} style={{ cursor: 'pointer', padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', userSelect: 'none' }}>
+                                       Atleta <span style={{ opacity: 0.5, fontSize: '1rem', marginLeft: '0.2rem', verticalAlign: 'middle' }}>{sortConfig?.key === 'atleta' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
+                                   </th>
+                                   <th onClick={() => requestSort('escola')} style={{ cursor: 'pointer', padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', userSelect: 'none' }}>
+                                       Escola / Faixa <span style={{ opacity: 0.5, fontSize: '1rem', marginLeft: '0.2rem', verticalAlign: 'middle' }}>{sortConfig?.key === 'escola' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
+                                   </th>
+                                   <th onClick={() => requestSort('estado')} style={{ cursor: 'pointer', padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', userSelect: 'none' }}>
+                                       Estado <span style={{ opacity: 0.5, fontSize: '1rem', marginLeft: '0.2rem', verticalAlign: 'middle' }}>{sortConfig?.key === 'estado' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
+                                   </th>
+                                   <th onClick={() => requestSort('pagamento')} style={{ cursor: 'pointer', padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', userSelect: 'none' }}>
+                                       Pagamento <span style={{ opacity: 0.5, fontSize: '1rem', marginLeft: '0.2rem', verticalAlign: 'middle' }}>{sortConfig?.key === 'pagamento' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
+                                   </th>
                                </tr>
                            </thead>
                            <tbody>
-                               {filteredRegs.map(reg => (
-                                   <tr key={reg.id}>
-                                       <td>
+                               {sortedRegs.map(reg => (
+                                   <tr key={reg.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                       <td style={{ padding: '0.75rem' }}>
                                            <strong>{reg.profiles?.full_name || 'Utilizador Desconhecido'}</strong>
                                            <br/>
-                                           <span className="text-muted">{reg.profiles?.role || '---'}</span>
+                                           <span className="text-muted" style={{ fontSize: '0.85rem' }}>{reg.profiles?.role || '---'}</span>
                                        </td>
-                                       <td>
+                                       <td style={{ padding: '0.75rem' }}>
                                            {reg.profiles?.school?.name || '---'}
                                            <br/>
-                                           <span className="belt-chip" style={{ marginTop: '4px'}}>
+                                           <span className="belt-chip" style={{ marginTop: '4px', display: 'inline-block', padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.1)' }}>
                                                {reg.profiles?.belt || '---'}
                                            </span>
                                        </td>
-                                       <td><span className={`status-badge ${reg.payment_status === 'Pago' ? 'status-pago' : 'status-pendente'}`}>{reg.payment_status}</span></td>
-                                       <td>
+                                       <td style={{ padding: '0.75rem' }}><span className={`status-badge ${reg.payment_status === 'Pago' ? 'status-pago' : 'status-pendente'}`}>{reg.payment_status}</span></td>
+                                       <td style={{ padding: '0.75rem' }}>
                                           <button 
                                              className={`btn-toggle-payment ${reg.payment_status === 'Pago' ? 'is-paid' : ''}`}
                                              onClick={() => togglePaymentStatus(reg.id, reg.payment_status)}
@@ -537,9 +602,9 @@ export default function Events() {
                                        </td>
                                    </tr>
                                ))}
-                               {filteredRegs.length === 0 && (
+                               {sortedRegs.length === 0 && (
                                    <tr>
-                                       <td colSpan={4} className="text-center">Sem inscrições a mostrar.</td>
+                                       <td colSpan={4} className="text-center" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Sem inscrições a mostrar com os filtros atuais.</td>
                                    </tr>
                                )}
                            </tbody>

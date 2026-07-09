@@ -523,7 +523,8 @@ export default function Dashboard() {
       `)
       .eq('user_id', profile.id)
       .in('status', ['Presente', 'Falta'])
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(3000);
 
     if (!history || history.length === 0) {
       alert('Não tens histórico de presenças para exportar.');
@@ -563,7 +564,8 @@ export default function Dashboard() {
       `)
       .eq('user_id', profile.id)
       .in('status', ['Presente', 'Falta'])
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(3000);
 
     if (!history || history.length === 0) {
       alert('Não tens histórico de presenças para exportar.');

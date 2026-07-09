@@ -110,6 +110,20 @@ export default function Login() {
                 setSuccess('Conta criada com sucesso! Faz login para entrar.');
                 switchMode('login');
             } else if (mode === 'recover') {
+                // 1. Verificação segura anti-enumeração
+                const { data: emailExists, error: rpcError } = await supabase.rpc('check_email_exists_secure', {
+                    p_email: email
+                });
+
+                if (rpcError) throw new Error(rpcError.message);
+
+                if (!emailExists) {
+                    setError('O email introduzido não existe no nosso sistema.');
+                    setLoading(false);
+                    return;
+                }
+
+                // 2. Envio do email de recuperação
                 const { error } = await supabase.auth.resetPasswordForEmail(email, {
                     redirectTo: `${window.location.origin}/reset-password`,
                 });

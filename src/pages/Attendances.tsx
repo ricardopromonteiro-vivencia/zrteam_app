@@ -29,6 +29,7 @@ export default function Attendances() {
     // Filtros
     const [searchQuery, setSearchQuery] = useState('');
     const [schoolFilter, setSchoolFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState('all');
     const [period, setPeriod] = useState<'today' | 'yesterday' | '2d' | '3d' | '7d'>('7d');
 
 
@@ -67,7 +68,7 @@ export default function Attendances() {
             p_requesting_user_id: session.user.id,
             p_requesting_role: prof?.role,
             p_requesting_school_id: prof?.school_id
-        });
+        }).limit(3000);
 
         if (rData && !error) {
             setRecords(rData);
@@ -96,13 +97,14 @@ export default function Attendances() {
                 record.full_name.toLowerCase().includes(q) ||
                 record.class_title.toLowerCase().includes(q);
             const matchesSchool = schoolFilter === 'all' || record.school_id === schoolFilter;
+            const matchesStatus = statusFilter === 'all' || record.status === statusFilter;
             const matchesDate =
                 period === 'today' ? record.class_date === todayStr :
                 period === 'yesterday' ? record.class_date === yesterdayStr :
                 true;
-            return matchesSearch && matchesSchool && matchesDate;
+            return matchesSearch && matchesSchool && matchesStatus && matchesDate;
         });
-    }, [records, searchQuery, schoolFilter, period, todayStr, yesterdayStr]);
+    }, [records, searchQuery, schoolFilter, statusFilter, period, todayStr, yesterdayStr]);
 
     async function handleStatusChange(bookingId: string, newStatus: string) {
         setSavingId(bookingId);
@@ -161,6 +163,17 @@ export default function Attendances() {
                             ))}
                         </select>
                     )}
+
+                    <select 
+                        value={statusFilter} 
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="filter-select"
+                    >
+                        <option value="all">Todos os Estados</option>
+                        <option value="Presente">Presente</option>
+                        <option value="Marcado">Marcado</option>
+                        <option value="Falta">Falta</option>
+                    </select>
 
                     <select 
                         value={period} 

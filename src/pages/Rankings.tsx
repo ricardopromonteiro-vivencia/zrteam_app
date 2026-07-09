@@ -170,7 +170,8 @@ export default function Rankings() {
       .lte('classes.date', periodEnd)
       .eq('profiles.school_id', selectedSchoolId)
       .eq('profiles.is_hidden', false)
-      .eq('profiles.is_archived', false);
+      .eq('profiles.is_archived', false)
+      .limit(5000);
 
     // Query histórico para desempate
     const historyQuery = supabase
@@ -181,7 +182,8 @@ export default function Rankings() {
       .lte('classes.date', historyEnd)
       .eq('profiles.school_id', selectedSchoolId)
       .eq('profiles.is_hidden', false)
-      .eq('profiles.is_archived', false);
+      .eq('profiles.is_archived', false)
+      .limit(5000);
 
     const [{ data: currentData }, { data: historyData }] = await Promise.all([
       currentQuery,
