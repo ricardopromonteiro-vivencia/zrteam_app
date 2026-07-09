@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useOutletContext } from 'react-router-dom';
 import { CalendarDays, Plus, MapPin, Users, Calendar, Trash2, ArrowRight, Clock, Download, Edit2, Building2 } from 'lucide-react';
@@ -323,7 +323,7 @@ export default function Events() {
     
     autoTable(doc, {
       head: [['Nome', 'Escola', 'Faixa', 'Estado Pgt.']],
-      body: sortedRegs.map(r => [
+      body: sortedRegs.map((r: any) => [
         r.profiles.full_name, 
         r.profiles.school?.name || '---', 
         r.profiles.belt, 
@@ -336,7 +336,7 @@ export default function Events() {
 
   const exportExcel = () => {
     if (!currentEvent) return;
-    const data = sortedRegs.map(r => ({
+    const data = sortedRegs.map((r: any) => ({
       Nome: r.profiles.full_name,
       Escola: r.profiles.school?.name || '---',
       Faixa: r.profiles.belt,
@@ -577,7 +577,7 @@ export default function Events() {
                                </tr>
                            </thead>
                            <tbody>
-                               {sortedRegs.map(reg => (
+                               {sortedRegs.map((reg: any) => (
                                    <tr key={reg.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                        <td style={{ padding: '0.75rem' }}>
                                            <strong>{reg.profiles?.full_name || 'Utilizador Desconhecido'}</strong>
