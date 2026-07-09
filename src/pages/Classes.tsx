@@ -101,12 +101,27 @@ export default function Classes() {
             if (profsData) setProfessors(profsData);
         }
 
-        // 2. Buscar aulas com contagem de reservas (agora busca todas as aulas independentemente do role)
-        let query = supabase
-            .from('classes')
-            .select('*, professor_id:profiles!classes_professor_id_fkey(id, full_name), second_professor_id:profiles!classes_second_professor_id_fkey(id, full_name), school:schools!classes_school_id_fkey(name), class_bookings(count)');
+        // 2. Buscar aulas com contagem de reservas — filtradas para os próximos 7 dias.
+        // NOTA: O PostgREST/Supabase tem um limite padrão de 1000 linhas por resposta.
+        // Buscar TODAS as aulas sem filtro de datas causava corte silencioso das aulas
+        // mais recentes assim que a tabela ultrapassou 1000 registos.
+        const formatDateLocal = (d: Date): string => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+        const todayDate = new Date();
+        const windowStart = new Date(todayDate);
+        windowStart.setDate(todayDate.getDate() - 1); // ontem (margem de segurança)
+        const windowEnd = new Date(todayDate);
+        windowEnd.setDate(todayDate.getDate() + 7);   // próximos 7 dias
 
-        const { data: classData } = await query
+        const { data: classData } = await supabase
+            .from('classes')
+            .select('*, professor_id:profiles!classes_professor_id_fkey(id, full_name), second_professor_id:profiles!classes_second_professor_id_fkey(id, full_name), school:schools!classes_school_id_fkey(name), class_bookings(count)')
+            .gte('date', formatDateLocal(windowStart))
+            .lte('date', formatDateLocal(windowEnd))
             .order('date', { ascending: true })
             .order('start_time', { ascending: true });
 
