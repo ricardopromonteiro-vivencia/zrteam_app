@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Lock, User, ShieldCheck, Trash2, AlertTriangle, Edit2, Save, X } from 'lucide-react';
+import { Lock, User, ShieldCheck, Trash2, AlertTriangle, Edit2, Save, X, Send, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 const BELTS = [
     'Cinza/ branco', 'Cinza', 'Cinza/ Preto',
@@ -23,24 +23,28 @@ export default function Settings() {
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
 
+    // Estado para pedido de mudança de faixa/grau
+    const [showGradeModal, setShowGradeModal] = useState(false);
+    const [gradeRequest, setGradeRequest] = useState({ belt: '', degrees: 0 });
+    const [pendingGradeRequest, setPendingGradeRequest] = useState<any | null>(null);
+    const [recentGradeRequests, setRecentGradeRequests] = useState<any[]>([]);
+
+    const isAthleteRole = profile?.role === 'Atleta';
+    const canDirectEdit = !isAthleteRole; // Admin/Professor editam diretamente
+
     const currentMonth = new Date().toLocaleString('pt-PT', { month: 'long' });
     const currentYear = new Date().getFullYear();
 
     useEffect(() => {
         async function fetchPaymentStatus() {
             if (!profile?.id) return;
-
-            // Escolas com pagamento externo (payment_management_enabled === false)
-            // estão automaticamente isentas — sem necessidade de verificar a BD
             if (profile?.school?.payment_management_enabled === false) {
                 setPaymentStatus('Pago');
                 return;
             }
-
             const now = new Date();
-            const month = now.getMonth() + 1; // 1-12
+            const month = now.getMonth() + 1;
             const year = now.getFullYear();
-
             const { data } = await supabase
                 .from('payments')
                 .select('status')
@@ -48,13 +52,9 @@ export default function Settings() {
                 .eq('month', month)
                 .eq('year', year)
                 .maybeSingle();
-
-            if (data) {
-                setPaymentStatus(data.status);
-            } else {
-                setPaymentStatus('Pendente');
-            }
+            setPaymentStatus(data ? data.status : 'Pendente');
         }
+
         async function loadOptions() {
             const { data: schoolsData } = await supabase.from('schools').select('id, name').order('order_index', { ascending: true }).order('name');
             if (schoolsData) setSchools(schoolsData);
@@ -65,8 +65,25 @@ export default function Settings() {
                 .order('full_name');
             if (profsData) setProfessors(profsData);
         }
+
+        async function fetchGradeRequests() {
+            if (!profile?.id || !isAthleteRole) return;
+            const { data } = await supabase
+                .from('grade_change_requests')
+                .select('*')
+                .eq('athlete_id', profile.id)
+                .order('created_at', { ascending: false })
+                .limit(5);
+            if (data) {
+                const pending = data.find((r: any) => r.status === 'pendente');
+                setPendingGradeRequest(pending || null);
+                setRecentGradeRequests(data.filter((r: any) => r.status !== 'pendente').slice(0, 3));
+            }
+        }
+
         fetchPaymentStatus();
         loadOptions();
+        fetchGradeRequests();
     }, [profile?.id]);
 
     const startEditProfile = () => {
@@ -83,25 +100,65 @@ export default function Settings() {
 
     const handleSaveProfile = async () => {
         setLoading(true);
+        const updateData: any = {
+            full_name: editForm.full_name,
+            date_of_birth: editForm.date_of_birth || null,
+            school_id: editForm.school_id || null,
+            assigned_professor_id: editForm.assigned_professor_id || null,
+        };
+        // Apenas admin/professor podem editar diretamente a faixa/grau
+        if (canDirectEdit) {
+            updateData.belt = editForm.belt;
+            updateData.degrees = parseInt(editForm.degrees);
+        }
         const { error } = await supabase
             .from('profiles')
-            .update({
-                full_name: editForm.full_name,
-                date_of_birth: editForm.date_of_birth || null,
-                belt: editForm.belt,
-                degrees: parseInt(editForm.degrees),
-                school_id: editForm.school_id || null,
-                assigned_professor_id: editForm.assigned_professor_id || null,
-            })
+            .update(updateData)
             .eq('id', profile.id);
 
         if (!error) {
             setMessage({ type: 'success', text: 'Perfil atualizado com sucesso!' });
             setEditingProfile(false);
-            // Forçar reload do perfil no contexto (via reload simples)
             window.location.reload();
         } else {
             setMessage({ type: 'error', text: 'Erro ao guardar: ' + error.message });
+        }
+        setLoading(false);
+        setTimeout(() => setMessage(null), 4000);
+    };
+
+    const handleSubmitGradeRequest = async () => {
+        if (!gradeRequest.belt) {
+            setMessage({ type: 'error', text: 'Seleciona uma faixa.' });
+            return;
+        }
+        setLoading(true);
+        const { error } = await supabase
+            .from('grade_change_requests')
+            .insert({
+                athlete_id: profile.id,
+                requested_belt: gradeRequest.belt,
+                requested_degrees: gradeRequest.degrees,
+                current_belt: profile.belt,
+                current_degrees: profile.degrees,
+                status: 'pendente',
+            });
+
+        if (!error) {
+            setMessage({ type: 'success', text: 'Pedido de graduação enviado! Aguarda aprovação do professor.' });
+            setShowGradeModal(false);
+            const { data } = await supabase
+                .from('grade_change_requests')
+                .select('*')
+                .eq('athlete_id', profile.id)
+                .order('created_at', { ascending: false })
+                .limit(5);
+            if (data) {
+                setPendingGradeRequest(data.find((r: any) => r.status === 'pendente') || null);
+                setRecentGradeRequests(data.filter((r: any) => r.status !== 'pendente').slice(0, 3));
+            }
+        } else {
+            setMessage({ type: 'error', text: 'Erro ao enviar pedido: ' + error.message });
         }
         setLoading(false);
         setTimeout(() => setMessage(null), 4000);
@@ -113,14 +170,9 @@ export default function Settings() {
             setMessage({ type: 'error', text: 'As palavras-passe não coincidem.' });
             return;
         }
-
         setLoading(true);
         setMessage(null);
-
-        const { error } = await supabase.auth.updateUser({
-            password: password
-        });
-
+        const { error } = await supabase.auth.updateUser({ password });
         if (error) {
             setMessage({ type: 'error', text: 'Erro ao atualizar: ' + error.message });
         } else {
@@ -134,24 +186,33 @@ export default function Settings() {
     const handleDeleteAccount = async () => {
         const confirm1 = confirm('Tens a certeza que queres eliminar a tua conta? Esta ação é IRREVERSÍVEL e todos os teus dados serão apagados.');
         if (!confirm1) return;
-
         const confirm2 = prompt('Para confirmar a eliminação, escreve "ELIMINAR" na caixa abaixo:');
         if (confirm2 !== 'ELIMINAR') {
             alert('Confirmação incorreta. A conta não foi eliminada.');
             return;
         }
-
         setLoading(true);
         try {
             const { error } = await supabase.rpc('delete_own_user');
             if (error) throw error;
-
             await supabase.auth.signOut();
             window.location.href = '/';
         } catch (err: any) {
             alert('Erro ao eliminar conta: ' + err.message);
             setLoading(false);
         }
+    };
+
+    const getStatusIcon = (status: string) => {
+        if (status === 'aprovado') return <CheckCircle size={14} style={{ color: '#10b981' }} />;
+        if (status === 'rejeitado') return <XCircle size={14} style={{ color: '#ef4444' }} />;
+        return <Clock size={14} style={{ color: '#f59e0b' }} />;
+    };
+
+    const getStatusLabel = (status: string) => {
+        if (status === 'aprovado') return { text: 'Aprovado', cls: 'grade-badge-approved' };
+        if (status === 'rejeitado') return { text: 'Rejeitado', cls: 'grade-badge-rejected' };
+        return { text: 'Pendente', cls: 'grade-badge-pending' };
     };
 
     return (
@@ -186,20 +247,23 @@ export default function Settings() {
                                 <label className="form-label">Data de Nascimento</label>
                                 <input type="date" className="form-input" value={editForm.date_of_birth} onChange={e => setEditForm((f: any) => ({ ...f, date_of_birth: e.target.value }))} />
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                                <div className="form-group">
-                                    <label className="form-label">Faixa</label>
-                                    <select className="form-input" value={editForm.belt} onChange={e => setEditForm((f: any) => ({ ...f, belt: e.target.value }))}>
-                                        {BELTS.map(b => <option key={b} value={b}>{b}</option>)}
-                                    </select>
+                            {/* Faixa/Grau apenas para Admin/Professor — atletas usam o pedido de graduação */}
+                            {canDirectEdit && (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                    <div className="form-group">
+                                        <label className="form-label">Faixa</label>
+                                        <select className="form-input" value={editForm.belt} onChange={e => setEditForm((f: any) => ({ ...f, belt: e.target.value }))}>
+                                            {BELTS.map(b => <option key={b} value={b}>{b}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Grau</label>
+                                        <select className="form-input" value={editForm.degrees} onChange={e => setEditForm((f: any) => ({ ...f, degrees: e.target.value }))}>
+                                            {[0, 1, 2, 3, 4].map(d => <option key={d} value={d}>{d}°</option>)}
+                                        </select>
+                                    </div>
                                 </div>
-                                <div className="form-group">
-                                    <label className="form-label">Grau</label>
-                                    <select className="form-input" value={editForm.degrees} onChange={e => setEditForm((f: any) => ({ ...f, degrees: e.target.value }))}>
-                                        {[0, 1, 2, 3, 4].map(d => <option key={d} value={d}>{d}°</option>)}
-                                    </select>
-                                </div>
-                            </div>
+                            )}
                             <div className="form-group">
                                 <label className="form-label">Escola</label>
                                 <select className="form-input" value={editForm.school_id} onChange={e => setEditForm((f: any) => ({ ...f, school_id: e.target.value, assigned_professor_id: '' }))}>
@@ -243,7 +307,7 @@ export default function Settings() {
                             </div>
                             <div className="info-item">
                                 <label>Faixa / Graduação</label>
-                                <p>{profile.belt} - {profile.degrees} Graus</p>
+                                <p>{profile.belt} - {profile.degrees} Grau{profile.degrees !== 1 ? 's' : ''}</p>
                             </div>
                             <div className="info-item">
                                 <label>Professor Responsável</label>
@@ -262,6 +326,76 @@ export default function Settings() {
                         </div>
                     )}
                 </div>
+
+                {/* Card de Pedido de Mudança de Faixa/Grau — apenas para Atletas */}
+                {isAthleteRole && (
+                    <div className="settings-card">
+                        <div className="card-header">
+                            <ShieldCheck className="text-primary" />
+                            <h2>Pedir Mudança de Graduação</h2>
+                        </div>
+                        <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+                            Pede uma mudança de faixa ou grau ao teu professor. O pedido fica pendente até ser aprovado.
+                        </p>
+
+                        {/* Pedido pendente */}
+                        {pendingGradeRequest && (
+                            <div style={{ marginBottom: '1.25rem', padding: '1rem', borderRadius: '0.75rem', background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                    <Clock size={16} style={{ color: '#f59e0b' }} />
+                                    <span style={{ fontWeight: 700, color: '#f59e0b', fontSize: '0.85rem' }}>Pedido Pendente</span>
+                                </div>
+                                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
+                                    Faixa {pendingGradeRequest.requested_belt}, {pendingGradeRequest.requested_degrees}° Grau
+                                    &nbsp;·&nbsp; Submetido em {new Date(pendingGradeRequest.created_at).toLocaleDateString('pt-PT')}
+                                </p>
+                                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem', opacity: 0.7 }}>
+                                    A aguardar aprovação do professor/administrador.
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Pedidos recentes */}
+                        {recentGradeRequests.length > 0 && (
+                            <div style={{ marginBottom: '1.25rem' }}>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>Pedidos Recentes</p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    {recentGradeRequests.map((req: any) => {
+                                        const s = getStatusLabel(req.status);
+                                        return (
+                                            <div key={req.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                    {getStatusIcon(req.status)}
+                                                    <span style={{ fontSize: '0.8rem', color: 'white' }}>
+                                                        {req.requested_belt}, {req.requested_degrees}° Grau
+                                                    </span>
+                                                </div>
+                                                <span className={`grade-badge ${s.cls}`}>{s.text}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Botão de novo pedido — só se não houver pendente */}
+                        {!pendingGradeRequest ? (
+                            <button
+                                onClick={() => {
+                                    setGradeRequest({ belt: profile.belt, degrees: profile.degrees });
+                                    setShowGradeModal(true);
+                                }}
+                                style={{ width: '100%', padding: '0.7rem', borderRadius: '0.5rem', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.9rem' }}
+                            >
+                                <Send size={16} /> Pedir Nova Graduação
+                            </button>
+                        ) : (
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                                Já tens um pedido pendente. Aguarda a resposta do professor antes de submeter outro.
+                            </p>
+                        )}
+                    </div>
+                )}
 
                 <div className="settings-card">
                     <div className="card-header">
@@ -321,56 +455,30 @@ export default function Settings() {
                         <div style={{ textAlign: 'center', padding: '1rem', borderRadius: '0.75rem', background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.1)' }}>
                             <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>🥇</div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.5rem' }}>Ouro</div>
-                            <input
-                                type="number" min="0"
-                                className="form-input"
-                                style={{ textAlign: 'center', fontSize: '1.25rem', fontWeight: 800 }}
-                                value={editForm.medals_gold ?? profile.medals_gold ?? 0}
-                                onChange={e => setEditForm((f: any) => ({ ...f, medals_gold: parseInt(e.target.value) || 0 }))}
-                            />
+                            <input type="number" min="0" className="form-input" style={{ textAlign: 'center', fontSize: '1.25rem', fontWeight: 800 }} value={editForm.medals_gold ?? profile.medals_gold ?? 0} onChange={e => setEditForm((f: any) => ({ ...f, medals_gold: parseInt(e.target.value) || 0 }))} />
                         </div>
                         <div style={{ textAlign: 'center', padding: '1rem', borderRadius: '0.75rem', background: 'rgba(156,163,175,0.05)', border: '1px solid rgba(156,163,175,0.1)' }}>
                             <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>🥈</div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.5rem' }}>Prata</div>
-                            <input
-                                type="number" min="0"
-                                className="form-input"
-                                style={{ textAlign: 'center', fontSize: '1.25rem', fontWeight: 800 }}
-                                value={editForm.medals_silver ?? profile.medals_silver ?? 0}
-                                onChange={e => setEditForm((f: any) => ({ ...f, medals_silver: parseInt(e.target.value) || 0 }))}
-                            />
+                            <input type="number" min="0" className="form-input" style={{ textAlign: 'center', fontSize: '1.25rem', fontWeight: 800 }} value={editForm.medals_silver ?? profile.medals_silver ?? 0} onChange={e => setEditForm((f: any) => ({ ...f, medals_silver: parseInt(e.target.value) || 0 }))} />
                         </div>
                         <div style={{ textAlign: 'center', padding: '1rem', borderRadius: '0.75rem', background: 'rgba(180,83,9,0.05)', border: '1px solid rgba(180,83,9,0.1)' }}>
                             <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>🥉</div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.5rem' }}>Bronze</div>
-                            <input
-                                type="number" min="0"
-                                className="form-input"
-                                style={{ textAlign: 'center', fontSize: '1.25rem', fontWeight: 800 }}
-                                value={editForm.medals_bronze ?? profile.medals_bronze ?? 0}
-                                onChange={e => setEditForm((f: any) => ({ ...f, medals_bronze: parseInt(e.target.value) || 0 }))}
-                            />
+                            <input type="number" min="0" className="form-input" style={{ textAlign: 'center', fontSize: '1.25rem', fontWeight: 800 }} value={editForm.medals_bronze ?? profile.medals_bronze ?? 0} onChange={e => setEditForm((f: any) => ({ ...f, medals_bronze: parseInt(e.target.value) || 0 }))} />
                         </div>
                     </div>
 
-                    <button 
+                    <button
                         onClick={async () => {
                             setLoading(true);
-                            const { error } = await supabase
-                                .from('profiles')
-                                .update({
-                                    medals_gold: editForm.medals_gold ?? profile.medals_gold ?? 0,
-                                    medals_silver: editForm.medals_silver ?? profile.medals_silver ?? 0,
-                                    medals_bronze: editForm.medals_bronze ?? profile.medals_bronze ?? 0
-                                })
-                                .eq('id', profile.id);
-                            
-                            if (!error) {
-                                setMessage({ type: 'success', text: 'Medalhas atualizadas!' });
-                                window.location.reload();
-                            } else {
-                                setMessage({ type: 'error', text: 'Erro ao guardar medalhas.' });
-                            }
+                            const { error } = await supabase.from('profiles').update({
+                                medals_gold: editForm.medals_gold ?? profile.medals_gold ?? 0,
+                                medals_silver: editForm.medals_silver ?? profile.medals_silver ?? 0,
+                                medals_bronze: editForm.medals_bronze ?? profile.medals_bronze ?? 0
+                            }).eq('id', profile.id);
+                            if (!error) { setMessage({ type: 'success', text: 'Medalhas atualizadas!' }); window.location.reload(); }
+                            else { setMessage({ type: 'error', text: 'Erro ao guardar medalhas.' }); }
                             setLoading(false);
                             setTimeout(() => setMessage(null), 3000);
                         }}
@@ -389,15 +497,62 @@ export default function Settings() {
                     <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '1.5rem' }}>
                         Uma vez eliminada, a tua conta e todos os teus dados associados (presenças, pagamentos, etc.) não podem ser recuperados.
                     </p>
-                    <button
-                        onClick={handleDeleteAccount}
-                        className="btn-danger-outline w-full"
-                        disabled={loading}
-                    >
+                    <button onClick={handleDeleteAccount} className="btn-danger-outline w-full" disabled={loading}>
                         <Trash2 size={18} /> Eliminar a Minha Conta
                     </button>
                 </div>
             </div>
+
+            {/* Modal de Pedido de Graduação */}
+            {showGradeModal && (
+                <div className="modal-overlay" onClick={() => setShowGradeModal(false)}>
+                    <div className="modal-box" onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                            <h3 style={{ margin: 0, color: 'white', fontSize: '1.1rem' }}>🥋 Pedir Nova Graduação</h3>
+                            <button onClick={() => setShowGradeModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div style={{ marginBottom: '1rem', padding: '0.75rem', borderRadius: '0.5rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                                Graduação atual: <strong style={{ color: 'white' }}>{profile.belt}, {profile.degrees}° Grau</strong>
+                            </p>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                            <div className="form-group">
+                                <label className="form-label">Nova Faixa</label>
+                                <select className="form-input" value={gradeRequest.belt} onChange={e => setGradeRequest(r => ({ ...r, belt: e.target.value }))}>
+                                    {BELTS.map(b => <option key={b} value={b}>{b}</option>)}
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Novo Grau</label>
+                                <select className="form-input" value={gradeRequest.degrees} onChange={e => setGradeRequest(r => ({ ...r, degrees: parseInt(e.target.value) }))}>
+                                    {[0, 1, 2, 3, 4].map(d => <option key={d} value={d}>{d}° Grau</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style={{ padding: '0.65rem 0.9rem', borderRadius: '0.5rem', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)', marginBottom: '1.25rem' }}>
+                            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
+                                <AlertTriangle size={12} style={{ display: 'inline', marginRight: '0.3rem', color: '#f59e0b' }} />
+                                O pedido será enviado para aprovação do teu professor ou administrador.
+                            </p>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.75rem' }}>
+                            <button onClick={() => setShowGradeModal(false)} style={{ flex: 1, padding: '0.65rem', borderRadius: '0.5rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'white', cursor: 'pointer', fontWeight: 500 }}>
+                                Cancelar
+                            </button>
+                            <button onClick={handleSubmitGradeRequest} disabled={loading} style={{ flex: 1, padding: '0.65rem', borderRadius: '0.5rem', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                <Send size={15} /> {loading ? 'A enviar...' : 'Enviar Pedido'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <style>{`
                 .settings-page { max-width: 1000px; margin: 0 auto; }
@@ -405,15 +560,15 @@ export default function Settings() {
                 .settings-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 1rem; padding: 2rem; }
                 .card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
                 .card-header h2 { font-size: 1.25rem; color: white; margin: 0; }
-                
+
                 .profile-info { display: flex; flex-direction: column; gap: 1.25rem; }
                 .info-item label { display: block; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
                 .info-item p { color: white; font-weight: 500; }
-                
+
                 .message-box { padding: 0.75rem 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem; font-size: 0.875rem; }
                 .message-success { background: rgba(16, 185, 129, 0.1); color: var(--primary); border: 1px solid rgba(16, 185, 129, 0.2); }
                 .message-error { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); }
-                
+
                 .text-muted { color: var(--text-muted); }
                 .text-danger { color: var(--danger); }
                 .role-badge { background: rgba(16, 185, 129, 0.1); color: var(--primary); padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
@@ -430,6 +585,26 @@ export default function Settings() {
                 .payment-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; display: inline-block; }
                 .payment-badge.paid { background: rgba(16, 185, 129, 0.1); color: var(--primary); border: 1px solid rgba(16, 185, 129, 0.2); }
                 .payment-badge.pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
+
+                .grade-badge { padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
+                .grade-badge-pending  { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+                .grade-badge-approved { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); }
+                .grade-badge-rejected { background: rgba(239,68,68,0.12);  color: #ef4444; border: 1px solid rgba(239,68,68,0.25); }
+
+                .modal-overlay {
+                    position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+                    display: flex; align-items: center; justify-content: center;
+                    z-index: 1000; padding: 1rem; backdrop-filter: blur(4px);
+                    animation: fadeIn 0.15s ease;
+                }
+                .modal-box {
+                    background: var(--bg-card); border: 1px solid var(--border);
+                    border-radius: 1rem; padding: 1.75rem; width: 100%; max-width: 440px;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+                    animation: slideUp 0.2s ease;
+                }
+                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
             `}</style>
         </div>
     );

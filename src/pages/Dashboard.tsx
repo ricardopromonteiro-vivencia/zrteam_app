@@ -7,24 +7,31 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
+// ==============================================================================
+// Regras de Graduação — atualizadas em 2026-07
+// ATENÇÃO: "nunca baixar" — se attended_classes > totalForNextBelt (por regra antiga),
+// o sistema continua a contar e só notifica a partir dos novos thresholds.
+// ==============================================================================
 const GRADUATION_RULES: Record<string, { totalForNextBelt: number, classesPerDegree: number, nextBelt: string }> = {
-  'Cinza/ branco': { totalForNextBelt: 40, classesPerDegree: 8, nextBelt: 'Cinza' },
-  'Cinza': { totalForNextBelt: 40, classesPerDegree: 8, nextBelt: 'Cinza/ Preto' },
-  'Cinza/ Preto': { totalForNextBelt: 40, classesPerDegree: 8, nextBelt: 'Amarelo / Branco' },
-  'Amarelo / Branco': { totalForNextBelt: 50, classesPerDegree: 10, nextBelt: 'Amarelo' },
-  'Amarelo': { totalForNextBelt: 50, classesPerDegree: 10, nextBelt: 'Amarelo/ preto' },
-  'Amarelo/ preto': { totalForNextBelt: 50, classesPerDegree: 10, nextBelt: 'Laranja/ Branco' },
-  'Laranja/ Branco': { totalForNextBelt: 60, classesPerDegree: 12, nextBelt: 'Laranja' },
-  'Laranja': { totalForNextBelt: 60, classesPerDegree: 12, nextBelt: 'Laranja/ preto' },
-  'Laranja/ preto': { totalForNextBelt: 60, classesPerDegree: 12, nextBelt: 'Verde / Branco' },
-  'Verde / Branco': { totalForNextBelt: 70, classesPerDegree: 14, nextBelt: 'Verde' },
-  'Verde': { totalForNextBelt: 70, classesPerDegree: 14, nextBelt: 'Verde / Preto' },
-  'Verde / Preto': { totalForNextBelt: 70, classesPerDegree: 14, nextBelt: 'Branco' },
-  'Branco': { totalForNextBelt: 220, classesPerDegree: 55, nextBelt: 'Azul' },
-  'Azul': { totalForNextBelt: 300, classesPerDegree: 75, nextBelt: 'Roxa' },
-  'Roxo': { totalForNextBelt: 300, classesPerDegree: 75, nextBelt: 'Marrom' },
-  'Marrom': { totalForNextBelt: 280, classesPerDegree: 70, nextBelt: 'Preto' },
-  'Preto': { totalForNextBelt: 1000, classesPerDegree: 200, nextBelt: 'Preto' }
+  // Faixas Infantis / Juvenis
+  'Cinza/ branco': { totalForNextBelt: 60, classesPerDegree: 15, nextBelt: 'Cinza' },
+  'Cinza':         { totalForNextBelt: 68, classesPerDegree: 17, nextBelt: 'Cinza/ Preto' },
+  'Cinza/ Preto':  { totalForNextBelt: 72, classesPerDegree: 18, nextBelt: 'Amarelo / Branco' },
+  'Amarelo / Branco': { totalForNextBelt: 60, classesPerDegree: 15, nextBelt: 'Amarelo' },
+  'Amarelo':          { totalForNextBelt: 68, classesPerDegree: 17, nextBelt: 'Amarelo/ preto' },
+  'Amarelo/ preto':   { totalForNextBelt: 72, classesPerDegree: 18, nextBelt: 'Laranja/ Branco' },
+  'Laranja/ Branco':  { totalForNextBelt: 60, classesPerDegree: 15, nextBelt: 'Laranja' },
+  'Laranja':          { totalForNextBelt: 68, classesPerDegree: 17, nextBelt: 'Laranja/ preto' },
+  'Laranja/ preto':   { totalForNextBelt: 72, classesPerDegree: 18, nextBelt: 'Verde / Branco' },
+  'Verde / Branco':   { totalForNextBelt: 60, classesPerDegree: 15, nextBelt: 'Verde' },
+  'Verde':            { totalForNextBelt: 68, classesPerDegree: 17, nextBelt: 'Verde / Preto' },
+  'Verde / Preto':    { totalForNextBelt: 72, classesPerDegree: 18, nextBelt: 'Branco' },
+  // Faixas Adultos
+  'Branco': { totalForNextBelt: 288, classesPerDegree: 72, nextBelt: 'Azul' },
+  'Azul':   { totalForNextBelt: 300, classesPerDegree: 75, nextBelt: 'Roxo' },
+  'Roxo':   { totalForNextBelt: 300, classesPerDegree: 75, nextBelt: 'Marrom' },
+  'Marrom': { totalForNextBelt: 288, classesPerDegree: 72, nextBelt: 'Preto' },
+  'Preto':  { totalForNextBelt: 1000, classesPerDegree: 200, nextBelt: 'Preto' }
 };
 
 export default function Dashboard() {
