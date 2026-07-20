@@ -5,6 +5,7 @@ import { LogIn, UserPlus, KeyRound } from 'lucide-react';
 import logo from '../assets/logo.png';
 
 const BELTS = [
+    'Branco Kid',
     'Cinza/ branco', 'Cinza', 'Cinza/ Preto',
     'Amarelo / Branco', 'Amarelo', 'Amarelo/ preto',
     'Laranja/ Branco', 'Laranja', 'Laranja/ preto',

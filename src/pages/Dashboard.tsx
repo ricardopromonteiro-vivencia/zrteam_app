@@ -14,6 +14,7 @@ import * as XLSX from 'xlsx';
 // ==============================================================================
 const GRADUATION_RULES: Record<string, { totalForNextBelt: number, classesPerDegree: number, nextBelt: string }> = {
   // Faixas Infantis / Juvenis
+  'Branco Kid':    { totalForNextBelt: 60, classesPerDegree: 15, nextBelt: 'Cinza/ branco' },
   'Cinza/ branco': { totalForNextBelt: 60, classesPerDegree: 15, nextBelt: 'Cinza' },
   'Cinza':         { totalForNextBelt: 68, classesPerDegree: 17, nextBelt: 'Cinza/ Preto' },
   'Cinza/ Preto':  { totalForNextBelt: 72, classesPerDegree: 18, nextBelt: 'Amarelo / Branco' },

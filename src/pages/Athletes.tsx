@@ -8,12 +8,12 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 const BELTS = [
-    'Branco',
+    'Branco Kid',
     'Cinza/ branco', 'Cinza', 'Cinza/ Preto',
     'Amarelo / Branco', 'Amarelo', 'Amarelo/ preto',
     'Laranja/ Branco', 'Laranja', 'Laranja/ preto',
     'Verde / Branco', 'Verde', 'Verde / Preto',
-    'Azul', 'Roxo', 'Marrom', 'Preto'
+    'Branco', 'Azul', 'Roxo', 'Marrom', 'Preto'
 ];
 
 const ROLES = ['Atleta', 'Professor', 'Professor Responsável', 'Admin'];
@@ -294,6 +294,7 @@ export default function Athletes() {
 
 
     const beltColors: Record<string, string> = {
+        'Branco Kid': '#f9fafb',
         'Cinza/ branco': '#d1d5db', 'Cinza': '#9ca3af', 'Cinza/ Preto': '#4b5563',
         'Amarelo / Branco': '#fef08a', 'Amarelo': '#facc15', 'Amarelo/ preto': '#a16207',
         'Laranja/ Branco': '#fed7aa', 'Laranja': '#fb923c', 'Laranja/ preto': '#9a3412',

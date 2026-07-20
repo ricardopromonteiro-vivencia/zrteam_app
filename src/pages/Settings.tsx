@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { Lock, User, ShieldCheck, Trash2, AlertTriangle, Edit2, Save, X, Send, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 const BELTS = [
+    'Branco Kid',
     'Cinza/ branco', 'Cinza', 'Cinza/ Preto',
     'Amarelo / Branco', 'Amarelo', 'Amarelo/ preto',
     'Laranja/ Branco', 'Laranja', 'Laranja/ preto',

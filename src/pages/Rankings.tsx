@@ -6,6 +6,7 @@ import autoTable from 'jspdf-autotable';
 import { BarChart2, Download, Trophy, Medal, ChevronDown } from 'lucide-react';
 
 const BELT_COLORS: Record<string, string> = {
+  'Branco Kid': '#f9fafb',
   'Branco': '#e5e7eb',
   'Cinza/ branco': '#9ca3af',
   'Cinza': '#6b7280',
