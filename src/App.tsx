@@ -27,6 +27,8 @@ import StoreManagement from './pages/admin/StoreManagement';
 import OrderManagement from './pages/admin/OrderManagement';
 import ExternalEvents from './pages/admin/ExternalEvents';
 import Rankings from './pages/Rankings';
+import QRDisplayPublic from './pages/QRDisplayPublic';
+import QRScannerPage from './pages/QRScannerPage';
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -108,6 +110,8 @@ function App() {
         />
         <Route path="/termos" element={<Terms />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        {/* Página pública do QR Code — sem autenticação, para tablet na entrada */}
+        <Route path="/qr" element={<QRDisplayPublic />} />
 
         {/* Rotas Protegidas com Layout */}
         <Route element={session ? <Layout /> : <Navigate to="/" />}>
@@ -134,6 +138,8 @@ function App() {
           <Route path="/admin/encomendas" element={<OrderManagement />} />
           <Route path="/admin/eventos-externos" element={<ExternalEvents />} />
           <Route path="/rankings" element={<Rankings />} />
+          {/* Scanner QR para atletas */}
+          <Route path="/checkin-qr" element={<QRScannerPage />} />
         </Route>
       </Routes>
     </Router>

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import {
   LogOut, Home, Calendar, Users, Activity, Settings,
   ShieldCheck, Menu, X, Building2, HelpCircle, Download, CreditCard, Megaphone, UserCheck,
-  Bell, BellOff, CalendarDays, Folder, ListChecks, ShoppingBag, Package, ShoppingCart, Trophy, BarChart2
+  Bell, BellOff, CalendarDays, Folder, ListChecks, ShoppingBag, Package, ShoppingCart, Trophy, BarChart2, QrCode
 } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { usePushNotifications } from '../hooks/usePushNotifications';
@@ -303,6 +303,7 @@ export default function Layout() {
         title: '🥋 Treino',
         items: [
           { name: 'Aulas', path: '/aulas', icon: Calendar },
+          { name: 'Fazer Check-in', path: '/checkin-qr', icon: QrCode },
         ]
       },
       {

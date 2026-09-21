@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { isProfessor as checkIsProfessor } from '../lib/roles';
-import { CheckCircle, XCircle, Clock, AlertTriangle, Users, Plus } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertTriangle, Users, Plus, QrCode } from 'lucide-react';
+import QRCodeDisplay from './QRCodeDisplay';
 
 export default function CheckIn() {
     const { profile } = useOutletContext<{ profile: any }>();
@@ -15,6 +16,7 @@ export default function CheckIn() {
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(false);
     const [pendingAthleteConfirm, setPendingAthleteConfirm] = useState<any>(null);
+    const [showQRModal, setShowQRModal] = useState(false);
     const scrollPosRef = useRef(0);
 
     const isAdmin = profile?.role === 'Admin';
@@ -87,17 +89,19 @@ export default function CheckIn() {
 
     // Check-in manual pelo professor
     const handleManualCheckIn = async (bookingId: string, userId: string) => {
-        // 1. Marcar como Presente
         scrollPosRef.current = window.scrollY;
         const { error } = await supabase
             .from('class_bookings')
-            .update({ status: 'Presente' })
+            .update({
+                status: 'Presente',
+                checkin_method: 'manual_professor',
+                checkin_at: new Date().toISOString(),
+                checkin_by_id: profile?.id ?? null,
+            })
             .eq('id', bookingId);
 
         if (!error) {
-            // 2. Incrementar contador de aulas do atleta
             await supabase.rpc('increment_attended_classes', { user_id_param: userId });
-            // Refrescar lista
             await loadBookings(selectedClass);
             window.scrollTo(0, scrollPosRef.current);
         } else {
@@ -144,7 +148,7 @@ export default function CheckIn() {
         setSearchQuery('');
     };
 
-    // Confirma e executa o check-in após popup
+    // Confirma e executa o check-in rápido (atleta não inscrito) pelo professor
     const handleQuickCheckIn = async (athlete: any) => {
         if (!selectedClass) return;
         setPendingAthleteConfirm(null);
@@ -154,7 +158,10 @@ export default function CheckIn() {
             .insert({
                 class_id: selectedClass.id,
                 user_id: athlete.id,
-                status: 'Presente'
+                status: 'Presente',
+                checkin_method: 'manual_professor',
+                checkin_at: new Date().toISOString(),
+                checkin_by_id: profile?.id ?? null,
             })
             .select()
             .single();
@@ -173,17 +180,21 @@ export default function CheckIn() {
     };
 
 
-    // Reverter Check-in: de Presente → Marcado, subtrai a presença
+    // Reverter Check-in: de Presente → Marcado, subtrai a presença + limpa auditoria
     const handleRevertCheckIn = async (booking: any) => {
         if (!confirm(`Reverter check-in de ${booking.user_id?.full_name}?`)) return;
         scrollPosRef.current = window.scrollY;
         setLoading(true);
-        // Decrementar contagem
         await supabase.rpc('decrement_attended_classes', { user_id_param: booking.user_id?.id });
-        // Mudar status para Marcado
+        // Limpar status e campos de auditoria
         const { error } = await supabase
             .from('class_bookings')
-            .update({ status: 'Marcado' })
+            .update({
+                status: 'Marcado',
+                checkin_method: null,
+                checkin_at: null,
+                checkin_by_id: null,
+            })
             .eq('id', booking.id);
         if (!error) {
             await loadBookings(selectedClass);
@@ -239,7 +250,20 @@ export default function CheckIn() {
 
     return (
         <div className="checkin-page animate-fade-in">
-            <h1 className="page-title">Painel de Check-in</h1>
+            {/* Modal QR Code */}
+            {showQRModal && <QRCodeDisplay onClose={() => setShowQRModal(false)} />}
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <h1 className="page-title" style={{ marginBottom: 0 }}>Painel de Check-in</h1>
+                <button
+                    onClick={() => setShowQRModal(true)}
+                    className="btn-qr-code"
+                    title="Mostrar Código QR do dia"
+                >
+                    <QrCode size={20} />
+                    <span>Código QR</span>
+                </button>
+            </div>
 
             {isAdmin && schools.length > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
@@ -438,6 +462,25 @@ export default function CheckIn() {
 
             <style>{`
         .checkin-page { max-width: 900px; margin: 0 auto; }
+
+        .btn-qr-code {
+          background: rgba(16, 185, 129, 0.1);
+          border: 1px solid rgba(16, 185, 129, 0.3);
+          border-radius: 0.6rem;
+          color: var(--primary);
+          padding: 0.55rem 1.1rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.875rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .btn-qr-code:hover {
+          background: rgba(16, 185, 129, 0.2);
+          box-shadow: 0 0 16px rgba(16, 185, 129, 0.2);
+        }
         .section-title { font-size: 1.125rem; font-weight: 600; color: white; margin-bottom: 1rem; }
 
         .class-select-btn {
