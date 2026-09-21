@@ -265,30 +265,26 @@ export default function QRScannerPage() {
                     </div>
                 )}
 
-                {/* Viewfinder da câmera */}
-                {scanning && !loading && !result && (
-                    <div className="qr-viewfinder-area animate-fade-in">
-                        <p className="qr-viewfinder-label">Aponta para o código QR</p>
-                        <div className="qr-viewfinder-wrapper">
-                            <div id="qr-reader" className="qr-reader-element" />
-                            {/* Cantos animados */}
-                            <div className="qr-corner qr-corner-tl" />
-                            <div className="qr-corner qr-corner-tr" />
-                            <div className="qr-corner qr-corner-bl" />
-                            <div className="qr-corner qr-corner-br" />
-                            {/* Linha de scan */}
-                            <div className="qr-scan-line" />
-                        </div>
-                        <button className="btn-qr-cancel" onClick={stopScanner}>
-                            <XCircle size={16} /> Cancelar
-                        </button>
+                {/* Viewfinder da câmera: está SEMPRE no DOM, mas oculto quando não scanning */}
+                <div 
+                    className="qr-viewfinder-area animate-fade-in"
+                    style={{ display: (scanning && !loading && !result) ? 'flex' : 'none' }}
+                >
+                    <p className="qr-viewfinder-label">Aponta para o código QR</p>
+                    <div className="qr-viewfinder-wrapper">
+                        <div id="qr-reader" className="qr-reader-element" />
+                        {/* Cantos animados */}
+                        <div className="qr-corner qr-corner-tl" />
+                        <div className="qr-corner qr-corner-tr" />
+                        <div className="qr-corner qr-corner-bl" />
+                        <div className="qr-corner qr-corner-br" />
+                        {/* Linha de scan */}
+                        <div className="qr-scan-line" />
                     </div>
-                )}
-
-                {/* Inicializar o div do scanner mesmo quando scanning (mas oculto até iniciar) */}
-                {!scanning && (
-                    <div id="qr-reader" style={{ display: 'none' }} />
-                )}
+                    <button className="btn-qr-cancel" onClick={stopScanner}>
+                        <XCircle size={16} /> Cancelar
+                    </button>
+                </div>
             </div>
 
             {/* Saudação ao utilizador */}
