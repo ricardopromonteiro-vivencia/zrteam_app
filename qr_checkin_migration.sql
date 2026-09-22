@@ -72,6 +72,22 @@ GRANT EXECUTE ON FUNCTION public.get_or_create_daily_qr() TO anon;
 
 
 -- ==============================================================================
+-- 2.5 TABELA DE LOGS DE TENTATIVAS DE CHECK-IN
+-- Guarda todas as tentativas (sucesso e falha) para rastreio
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.qr_checkin_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+  qr_code_scanned text,
+  status text NOT NULL, -- 'success', 'invalid_code', 'no_booking', 'not_authenticated'
+  created_at timestamptz DEFAULT now(),
+  CONSTRAINT qr_checkin_logs_pkey PRIMARY KEY (id)
+);
+ALTER TABLE public.qr_checkin_logs ENABLE ROW LEVEL SECURITY;
+-- Apenas administradores ou service_role devem ler (podes adicionar policies depois se precisares de ver na app)
+
+
+-- ==============================================================================
 -- 3. RPC: Auto check-in do atleta via QR Code
 -- Chamada pelo atleta autenticado após leitura do QR.
 -- Toda a lógica de validação corre no servidor (seguro contra manipulação).
@@ -93,6 +109,8 @@ DECLARE
 BEGIN
   -- Segurança: só utilizadores autenticados podem chamar
   IF v_user_id IS NULL THEN
+    INSERT INTO public.qr_checkin_logs (user_id, qr_code_scanned, status) 
+    VALUES (NULL, qr_code_param, 'not_authenticated');
     RETURN jsonb_build_object('success', false, 'reason', 'not_authenticated');
   END IF;
 
@@ -102,6 +120,8 @@ BEGIN
   WHERE valid_date = v_today;
 
   IF v_valid_code IS NULL OR v_valid_code <> qr_code_param THEN
+    INSERT INTO public.qr_checkin_logs (user_id, qr_code_scanned, status) 
+    VALUES (v_user_id, qr_code_param, 'invalid_code');
     RETURN jsonb_build_object('success', false, 'reason', 'invalid_code');
   END IF;
 
@@ -122,6 +142,8 @@ BEGIN
 
   -- 3. Sem marcação válida na janela horária
   IF v_booking_id IS NULL THEN
+    INSERT INTO public.qr_checkin_logs (user_id, qr_code_scanned, status) 
+    VALUES (v_user_id, qr_code_param, 'no_booking');
     RETURN jsonb_build_object('success', false, 'reason', 'no_booking');
   END IF;
 
@@ -136,6 +158,10 @@ BEGIN
 
   -- 5. Incrementar contador de aulas assistidas
   PERFORM public.increment_attended_classes(v_user_id);
+
+  -- 6. Registar log de sucesso
+  INSERT INTO public.qr_checkin_logs (user_id, qr_code_scanned, status) 
+  VALUES (v_user_id, qr_code_param, 'success');
 
   RETURN jsonb_build_object(
     'success', true,

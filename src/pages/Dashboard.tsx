@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { Activity, Calendar, Clock, ExternalLink, Download, Edit2, Target } from 'lucide-react';
+import { Activity, Calendar, Clock, ExternalLink, Download, Edit2, Target, QrCode } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { isProfessor } from '../lib/roles';
 import jsPDF from 'jspdf';
@@ -1078,9 +1078,20 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard animate-fade-in">
-      <header className="dashboard-welcome">
-        <h1 className="page-title">Olá, {profile.full_name.split(' ')[0]}!</h1>
-        <p className="welcome-text">Bora completar mais um treino de hoje?</p>
+      <header className="dashboard-welcome" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
+        <div>
+          <h1 className="page-title" style={{ marginBottom: '0.5rem' }}>Olá, {profile.full_name.split(' ')[0]}!</h1>
+          <p className="welcome-text" style={{ margin: 0 }}>Bora completar mais um treino de hoje?</p>
+        </div>
+        
+        <Link 
+          to="/checkin-qr" 
+          className="btn-primary" 
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', fontSize: '1rem', fontWeight: 700, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)' }}
+        >
+          <QrCode size={20} />
+          Fazer Check-in (QR)
+        </Link>
       </header>
 
       <div className="stats-grid">
