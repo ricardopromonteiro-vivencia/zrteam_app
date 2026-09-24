@@ -678,14 +678,23 @@ export default function Dashboard() {
 
     return (
       <div className="dashboard animate-fade-in">
-        <header className="dashboard-welcome">
+        <header className="dashboard-welcome" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
           <div>
-            <h1 className="page-title">{timeGreeting}, {greeting} {profile.full_name.split(' ')[0]}! 👋</h1>
-            <p className="welcome-text">Aqui está o resumo de hoje no tatame.</p>
+            <h1 className="page-title" style={{ marginBottom: '0.5rem' }}>{timeGreeting}, {greeting} {profile.full_name.split(' ')[0]}! 👋</h1>
+            <p className="welcome-text" style={{ margin: 0 }}>Aqui está o resumo de hoje no tatame.</p>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
-            <span className="school-pill">{profile.school?.name || 'ZR Team'}</span>
-            {profile.role === 'Admin' && schools.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <Link 
+              to="/checkin-qr" 
+              className="btn-primary" 
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', fontSize: '1rem', fontWeight: 700, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)', textDecoration: 'none' }}
+            >
+              <QrCode size={20} />
+              Fazer Check-in (QR)
+            </Link>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
+              <span className="school-pill">{profile.school?.name || 'ZR Team'}</span>
+              {profile.role === 'Admin' && schools.length > 0 && (
               <select
                 value={adminFilterSchool}
                 onChange={e => setAdminFilterSchool(e.target.value)}
@@ -702,6 +711,7 @@ export default function Dashboard() {
                 ))}
               </select>
             )}
+            </div>
           </div>
         </header>
 

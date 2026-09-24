@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { isProfessor as checkIsProfessor } from '../lib/roles';
 import { CheckCircle, XCircle, Clock, AlertTriangle, Users, Plus, QrCode } from 'lucide-react';
@@ -17,6 +17,8 @@ export default function CheckIn() {
     const [loading, setLoading] = useState(false);
     const [pendingAthleteConfirm, setPendingAthleteConfirm] = useState<any>(null);
     const [showQRModal, setShowQRModal] = useState(false);
+    const [selfBooking, setSelfBooking] = useState<any>(null); // booking próprio do prof/admin
+    const [selfCheckInLoading, setSelfCheckInLoading] = useState(false);
     const scrollPosRef = useRef(0);
 
     const isAdmin = profile?.role === 'Admin';
@@ -84,7 +86,82 @@ export default function CheckIn() {
             .eq('class_id', cls.id)
             .order('created_at');
         if (data) setBookings(data);
+
+        // Verificar se o prof/admin já está inscrito nesta aula
+        const { data: ownBooking } = await supabase
+            .from('class_bookings')
+            .select('id, status')
+            .eq('class_id', cls.id)
+            .eq('user_id', profile?.id)
+            .maybeSingle();
+        setSelfBooking(ownBooking ?? null);
+
         setLoading(false);
+    };
+
+    // Check-in próprio do professor/admin
+    const handleSelfCheckIn = async () => {
+        if (!selectedClass) return;
+        setSelfCheckInLoading(true);
+
+        try {
+            if (!selfBooking) {
+                // Não está inscrito — inscrever + marcar como Presente
+                const { data: newBooking, error } = await supabase
+                    .from('class_bookings')
+                    .insert({
+                        class_id: selectedClass.id,
+                        user_id: profile.id,
+                        status: 'Presente',
+                        checkin_method: 'manual_professor',
+                        checkin_at: new Date().toISOString(),
+                        checkin_by_id: profile.id,
+                    })
+                    .select('id, status')
+                    .single();
+                if (error) throw error;
+                setSelfBooking(newBooking);
+                await supabase.rpc('increment_attended_classes', { user_id_param: profile.id });
+            } else if (selfBooking.status === 'Marcado') {
+                // Já inscrito mas não fez check-in
+                const { error } = await supabase
+                    .from('class_bookings')
+                    .update({
+                        status: 'Presente',
+                        checkin_method: 'manual_professor',
+                        checkin_at: new Date().toISOString(),
+                        checkin_by_id: profile.id,
+                    })
+                    .eq('id', selfBooking.id);
+                if (error) throw error;
+                setSelfBooking({ ...selfBooking, status: 'Presente' });
+                await supabase.rpc('increment_attended_classes', { user_id_param: profile.id });
+            }
+            // Recarregar lista de inscritos para refletir o professor na lista
+            await loadBookings(selectedClass);
+        } catch (err: any) {
+            alert('Erro ao registar check-in próprio: ' + (err.message ?? err));
+        }
+        setSelfCheckInLoading(false);
+    };
+
+    // Cancelar inscrição própria
+    const handleSelfCancel = async () => {
+        if (!selfBooking) return;
+        if (!confirm('Cancelar a tua inscrição nesta aula?')) return;
+        setSelfCheckInLoading(true);
+        try {
+            if (selfBooking.status === 'Presente') {
+                await supabase.rpc('decrement_attended_classes', { user_id_param: profile.id });
+            }
+            const { error } = await supabase.from('class_bookings').delete().eq('id', selfBooking.id);
+            if (error) throw error;
+            setSelfBooking(null);
+            await loadBookings(selectedClass);
+        } catch (err: any) {
+            alert('Erro ao cancelar: ' + (err.message ?? err));
+        }
+        setSelfCheckInLoading(false);
     };
 
     // Check-in manual pelo professor
@@ -255,14 +332,24 @@ export default function CheckIn() {
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                 <h1 className="page-title" style={{ marginBottom: 0 }}>Painel de Check-in</h1>
-                <button
-                    onClick={() => setShowQRModal(true)}
-                    className="btn-qr-code"
-                    title="Mostrar Código QR do dia"
-                >
-                    <QrCode size={20} />
-                    <span>Código QR</span>
-                </button>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Link
+                        to="/checkin-qr"
+                        className="btn-primary"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1rem', fontSize: '0.9rem', fontWeight: 700, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)', textDecoration: 'none' }}
+                    >
+                        <QrCode size={18} />
+                        Fazer Check-in (QR)
+                    </Link>
+                    <button
+                        onClick={() => setShowQRModal(true)}
+                        className="btn-qr-code"
+                        title="Mostrar Código QR do dia"
+                    >
+                        <QrCode size={20} />
+                        <span>Código QR</span>
+                    </button>
+                </div>
             </div>
 
             {isAdmin && schools.length > 0 && (
@@ -322,6 +409,59 @@ export default function CheckIn() {
 
             {selectedClass && (
                 <>
+                    {/* ===== O MEU CHECK-IN (professor/admin treina também) ===== */}
+                    <div className="self-checkin-panel">
+                        <div className="self-checkin-header">
+                            <span style={{ fontSize: '1.1rem' }}>🥋</span>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 700, color: 'white', fontSize: '0.9rem' }}>O Meu Check-in</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Regista a tua própria presença nesta aula</div>
+                            </div>
+                            {selfBooking?.status === 'Presente' ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                    <span style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--primary)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: '9999px', padding: '0.3rem 0.9rem', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        <CheckCircle size={14} /> Presente
+                                    </span>
+                                    <button
+                                        onClick={handleSelfCancel}
+                                        disabled={selfCheckInLoading}
+                                        style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '0.5rem', padding: '0.35rem 0.75rem', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                                    >
+                                        <XCircle size={14} /> Reverter
+                                    </button>
+                                </div>
+                            ) : selfBooking?.status === 'Marcado' ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                    <span style={{ background: 'rgba(253,186,116,0.1)', color: '#fb923c', border: '1px solid rgba(253,186,116,0.3)', borderRadius: '9999px', padding: '0.3rem 0.9rem', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        <Clock size={14} /> Inscrito
+                                    </span>
+                                    <button
+                                        onClick={handleSelfCheckIn}
+                                        disabled={selfCheckInLoading}
+                                        className="btn-self-checkin"
+                                    >
+                                        {selfCheckInLoading ? '...' : <><CheckCircle size={16} /> Fazer Check-in</>}
+                                    </button>
+                                    <button
+                                        onClick={handleSelfCancel}
+                                        disabled={selfCheckInLoading}
+                                        style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '0.5rem', padding: '0.35rem 0.75rem', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={handleSelfCheckIn}
+                                    disabled={selfCheckInLoading}
+                                    className="btn-self-checkin"
+                                >
+                                    {selfCheckInLoading ? 'A registar...' : <><Plus size={16} /> Marcar Presença</>}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Pesquisa de Atletas para Check-in Direto */}
                     <div className="search-panel">
                         <Users size={20} className="text-primary" />
@@ -521,6 +661,53 @@ export default function CheckIn() {
           gap: 1rem;
           margin: 1.5rem 0;
           position: relative;
+        }
+
+        .self-checkin-panel {
+          background: linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(16,185,129,0.06) 100%);
+          border: 1px solid rgba(99,102,241,0.25);
+          border-radius: 0.9rem;
+          padding: 1rem 1.25rem;
+          margin: 1.5rem 0 0.5rem;
+          position: relative;
+          overflow: hidden;
+        }
+        .self-checkin-panel::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0;
+          height: 2px;
+          background: linear-gradient(90deg, rgba(99,102,241,0.6), rgba(16,185,129,0.5));
+        }
+        .self-checkin-header {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+        }
+        .btn-self-checkin {
+          background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(16,185,129,0.2));
+          color: #a5b4fc;
+          border: 1px solid rgba(99,102,241,0.4);
+          border-radius: 0.5rem;
+          padding: 0.45rem 1rem;
+          font-size: 0.85rem;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+        .btn-self-checkin:hover {
+          background: linear-gradient(135deg, rgba(99,102,241,0.4), rgba(16,185,129,0.3));
+          border-color: rgba(99,102,241,0.7);
+          color: white;
+        }
+        .btn-self-checkin:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
         .search-results {
           position: absolute;

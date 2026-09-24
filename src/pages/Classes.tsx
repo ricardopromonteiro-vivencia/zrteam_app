@@ -516,15 +516,18 @@ export default function Classes() {
                                         )}
                                     </div>
 
-                                    {/* Inscrição: Atletas e Professores podem inscrever-se */}
-                                    {(profile?.role === 'Atleta' || profile?.role === 'Professor') && (() => {
+                                    {/* Inscrição: Todos os roles podem inscrever-se para treinar */}
+                                    {(() => {
                                         const classDateTime = new Date(`${cls.date}T${cls.start_time}`);
                                         const deadline = new Date(classDateTime.getTime() - 30 * 60000); // 30 mins before
                                         const now = new Date();
                                         const isPastDeadline = now >= deadline;
+                                        const isManagementRole = profile?.role === 'Admin' || profile?.role === 'Professor Responsável';
+                                        const isParticipantRole = profile?.role === 'Atleta' || profile?.role === 'Professor';
 
-                                        return (
-                                            paymentBlocked && !isEnrolled && profile?.role === 'Atleta' ? (
+                                        // Bloqueio de pagamento — apenas para atletas
+                                        if (paymentBlocked && !isEnrolled && profile?.role === 'Atleta') {
+                                            return (
                                                 <button
                                                     className="btn-booking mt-4 w-full"
                                                     disabled
@@ -532,22 +535,32 @@ export default function Classes() {
                                                 >
                                                     <CreditCard size={17} /> Pagamento em Falta
                                                 </button>
-                                            ) : (
+                                            );
+                                        }
+
+                                        // Botão para roles participantes (Atleta, Professor) e roles de gestão
+                                        if (isParticipantRole || isManagementRole) {
+                                            const labelEnrolled = isManagementRole
+                                                ? <><CheckCircle size={18} /> A treinar {isPastDeadline ? '' : '(Cancelar)'}</>
+                                                : <><CheckCircle size={18} /> Inscrito {isPastDeadline ? '' : '(Desmarcar)'}</>;
+                                            const labelEnroll = isManagementRole
+                                                ? <><Plus size={18} /> {isPastDeadline ? 'Encerrado' : 'Inscrever para Treinar'}</>
+                                                : <><Plus size={18} /> {isPastDeadline ? 'Encerrado' : 'Inscrever-me'}</>;
+
+                                            return (
                                                 <button
-                                                    className={`btn-booking mt-4 w-full ${isEnrolled ? 'btn-enrolled' : 'btn-primary'}`}
-                                                    disabled={isPastDeadline}
-                                                    style={isPastDeadline ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
-                                                    onClick={() => !isPastDeadline && handleBooking(cls.id)}
-                                                    title={isPastDeadline ? 'O prazo para marcação/desmarcação (30 min antes) já terminou.' : ''}
+                                                    className={`btn-booking mt-4 w-full ${isEnrolled ? 'btn-enrolled' : isManagementRole ? 'btn-train' : 'btn-primary'}`}
+                                                    disabled={isPastDeadline && !isEnrolled}
+                                                    style={isPastDeadline && !isEnrolled ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+                                                    onClick={() => !(isPastDeadline && !isEnrolled) && handleBooking(cls.id)}
+                                                    title={isPastDeadline && !isEnrolled ? 'O prazo para marcação (30 min antes) já terminou.' : ''}
                                                 >
-                                                    {isEnrolled ? (
-                                                        <><CheckCircle size={18} /> Inscrito {isPastDeadline ? '' : '(Desmarcar)'}</>
-                                                    ) : (
-                                                        <><Plus size={18} /> {isPastDeadline ? 'Encerrado' : 'Inscrever-me'}</>
-                                                    )}
+                                                    {isEnrolled ? labelEnrolled : labelEnroll}
                                                 </button>
-                                            )
-                                        );
+                                            );
+                                        }
+
+                                        return null;
                                     })()}
                                 </div>
                             );
@@ -736,6 +749,8 @@ export default function Classes() {
                 }
                 .btn-enrolled { background: rgba(16, 185, 129, 0.2); color: var(--primary); border: 1px solid var(--primary); }
                 .btn-enrolled:hover { background: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: var(--danger); }
+                .btn-train { background: rgba(99, 102, 241, 0.18); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); }
+                .btn-train:hover { background: rgba(99, 102, 241, 0.28); border-color: #818cf8; }
 
                 .enrolled-footer {
                     margin-top: 1rem;

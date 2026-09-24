@@ -100,7 +100,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_user_id uuid := auth.uid();
-  v_today date := CURRENT_DATE;
+  v_today date := (NOW() AT TIME ZONE 'Europe/Lisbon')::date;
   v_valid_code text;
   v_now timestamptz := NOW();
   v_booking_id uuid;
@@ -135,8 +135,8 @@ BEGIN
   WHERE cb.user_id = v_user_id
     AND c.date = v_today
     AND cb.status = 'Marcado'  -- Só marcações ainda por confirmar
-    AND (c.date + c.start_time - interval '30 minutes') <= v_now
-    AND (c.date + c.end_time + interval '60 minutes') >= v_now
+    AND ((c.date + c.start_time) AT TIME ZONE 'Europe/Lisbon' - interval '30 minutes') <= v_now
+    AND ((c.date + c.end_time) AT TIME ZONE 'Europe/Lisbon' + interval '60 minutes') >= v_now
   ORDER BY c.start_time ASC
   LIMIT 1;
 
