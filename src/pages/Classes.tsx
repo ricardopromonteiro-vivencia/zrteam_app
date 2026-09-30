@@ -325,7 +325,7 @@ export default function Classes() {
             .select(`
                 id,
                 status,
-                profiles (
+                profiles!class_bookings_user_id_fkey (
                     full_name,
                     belt,
                     degrees
