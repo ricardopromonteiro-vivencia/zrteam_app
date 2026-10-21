@@ -65,6 +65,11 @@ interface HistoryRow {
   classes: { date: string; school_id: string } | null;
 }
 
+// Formatar datas localmente para evitar desvio UTC (ex: Portugal UTC+1)
+function fmtLocalDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function getWeekRange(offset: WeekOffset) {
   const now = new Date();
   const dayOfWeek = now.getDay(); // 0=dom, 1=seg...
@@ -76,8 +81,8 @@ function getWeekRange(offset: WeekOffset) {
   sunday.setDate(monday.getDate() + 6);
   sunday.setHours(23, 59, 59, 999);
   return {
-    start: monday.toISOString().split('T')[0],
-    end: sunday.toISOString().split('T')[0],
+    start: fmtLocalDate(monday),
+    end: fmtLocalDate(sunday),
     label: offset === 0 ? 'Semana Atual' : 'Semana Anterior',
   };
 }
@@ -90,8 +95,8 @@ function getMonthRange(offset: MonthOffset) {
   const lastDay = new Date(year, month + 1, 0);
   const monthName = firstDay.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
   return {
-    start: firstDay.toISOString().split('T')[0],
-    end: lastDay.toISOString().split('T')[0],
+    start: fmtLocalDate(firstDay),
+    end: fmtLocalDate(lastDay),
     label: offset === 0 ? `Mês Atual — ${monthName}` : `Mês Anterior — ${monthName}`,
     monthName,
   };
@@ -148,8 +153,8 @@ export default function Rankings() {
       histStart.setDate(histStart.getDate() - 28);
       const histEnd = new Date(periodStart);
       histEnd.setDate(histEnd.getDate() - 1);
-      historyStart = histStart.toISOString().split('T')[0];
-      historyEnd = histEnd.toISOString().split('T')[0];
+      historyStart = fmtLocalDate(histStart);
+      historyEnd = fmtLocalDate(histEnd);
     } else {
       const month = getMonthRange(monthOffset);
       periodStart = month.start;
@@ -158,8 +163,8 @@ export default function Rankings() {
       const histEnd = new Date(periodStart);
       histEnd.setDate(histEnd.getDate() - 1);
       const histStart = new Date(histEnd.getFullYear(), histEnd.getMonth() - 2, 1);
-      historyStart = histStart.toISOString().split('T')[0];
-      historyEnd = histEnd.toISOString().split('T')[0];
+      historyStart = fmtLocalDate(histStart);
+      historyEnd = fmtLocalDate(histEnd);
     }
 
     // Query período atual

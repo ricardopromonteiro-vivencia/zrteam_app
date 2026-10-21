@@ -59,6 +59,7 @@ export default function Dashboard() {
   const [nextEvent, setNextEvent] = useState<any | null>(null);
   const [nextExternalEvents, setNextExternalEvents] = useState<any[]>([]);
   const [weeklyRanking, setWeeklyRanking] = useState<{ full_name: string; role: string; belt: string; count: number }[]>([]);
+  const [monthlyRanking, setMonthlyRanking] = useState<{ full_name: string; role: string; belt: string; count: number }[]>([]);
   const [monthlyAwards, setMonthlyAwards] = useState<{ full_name: string; role: string; belt: string; count: number }[]>([]);
   const [medals, setMedals] = useState({ gold: 0, silver: 0, bronze: 0 });
   const [editingMedals, setEditingMedals] = useState(false);
@@ -67,10 +68,12 @@ export default function Dashboard() {
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     const now = new Date();
+    // Formatar datas localmente para evitar desvio UTC (ex: Portugal UTC+1)
+    const fmtLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
-    const today = now.toISOString().split('T')[0];
+    const today = fmtLocal(now);
 
     // --- Definir todas as queries (NÃO aguardar ainda) ---
 
@@ -105,9 +108,7 @@ export default function Dashboard() {
     let faltasCount = 0;
     let eventData: any = null;
     let rankData: any = null;
-    let rankHistData: any = null;
     let awardsData: any = null;
-    let awardsHistData: any = null;
     let lastPresence: any = null;
     let externalEventData: any[] = [];
 
@@ -126,7 +127,7 @@ export default function Dashboard() {
     if (profile.role !== 'Atleta') {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(now.getDate() - 7);
-      const sevenDaysAgoDate = sevenDaysAgo.toISOString().split('T')[0];
+      const sevenDaysAgoDate = fmtLocal(sevenDaysAgo);
 
       // Buscar escolas se não existirem
       if (schools.length === 0) {
@@ -227,8 +228,8 @@ export default function Dashboard() {
     const isAthleteOrProf = profile.role === 'Atleta' || isProfessor(profile.role);
     if (isAthleteOrProf) {
       const now2 = new Date();
-      const firstDayOfMonth = new Date(now2.getFullYear(), now2.getMonth(), 1).toISOString().split('T')[0];
-      const lastDayOfMonth = new Date(now2.getFullYear(), now2.getMonth() + 1, 0).toISOString().split('T')[0];
+      const firstDayOfMonth = fmtLocal(new Date(now2.getFullYear(), now2.getMonth(), 1));
+      const lastDayOfMonth = fmtLocal(new Date(now2.getFullYear(), now2.getMonth() + 1, 0));
 
       if (profile.role === 'Atleta') {
         promises.push((async () => {
@@ -275,91 +276,58 @@ export default function Dashboard() {
       externalEventData = data || [];
     })());
 
-    // Ranking Semanal
+    // Ranking Semanal (via RPC para contornar RLS)
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7));
     weekStart.setHours(0, 0, 0, 0);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
     weekEnd.setHours(23, 59, 59, 999);
+    const weekStartStr = fmtLocal(weekStart);
+    const weekEndStr = fmtLocal(weekEnd);
+
+    const rankingSchoolId = profile.role === 'Admin'
+      ? (adminFilterSchool !== 'all' ? adminFilterSchool : null)
+      : (profile.school_id || null);
     
-    let rankingQuery = supabase.from('class_bookings')
-      .select('user_id, profiles!inner(full_name, role, belt, school_id, is_hidden), classes!inner(date, school_id)')
-      .eq('status', 'Presente')
-      .gte('classes.date', weekStart.toISOString().split('T')[0])
-      .lte('classes.date', weekEnd.toISOString().split('T')[0])
-      .eq('profiles.is_hidden', false);
-      
-    if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
-        rankingQuery = rankingQuery.eq('profiles.school_id', adminFilterSchool);
-    } else if (profile.role !== 'Admin' && profile.school_id) {
-        rankingQuery = rankingQuery.eq('profiles.school_id', profile.school_id);
-    }
     promises.push((async () => {
-      const res = await rankingQuery;
+      const res = await supabase.rpc('get_weekly_ranking', {
+        p_school_id: rankingSchoolId,
+        p_week_start: weekStartStr,
+        p_week_end: weekEndStr
+      });
+      if (res.error) console.error('[Ranking Semanal] Erro:', res.error.message, res.error);
       rankData = res.data;
     })());
 
-    // Histórico do ranking semanal (4 semanas anteriores → desempate)
-    const rankHistEnd = new Date(weekStart);
-    rankHistEnd.setDate(weekStart.getDate() - 1);
-    const rankHistStart = new Date(rankHistEnd);
-    rankHistStart.setDate(rankHistEnd.getDate() - 27);
-    let rankingHistQuery = supabase.from('class_bookings')
-      .select('user_id, profiles!inner(school_id, is_hidden), classes!inner(date, school_id)')
-      .eq('status', 'Presente')
-      .gte('classes.date', rankHistStart.toISOString().split('T')[0])
-      .lte('classes.date', rankHistEnd.toISOString().split('T')[0])
-      .eq('profiles.is_hidden', false);
-    if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
-        rankingHistQuery = (rankingHistQuery as any).eq('profiles.school_id', adminFilterSchool);
-    } else if (profile.role !== 'Admin' && profile.school_id) {
-        rankingHistQuery = (rankingHistQuery as any).eq('profiles.school_id', profile.school_id);
-    }
+    // Ranking Mensal do mês actual (via RPC)
+    const curMonthStart = fmtLocal(new Date(now.getFullYear(), now.getMonth(), 1));
+    const curMonthEnd = fmtLocal(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    let monthlyRankData: any = null;
+
     promises.push((async () => {
-      const res = await rankingHistQuery;
-      rankHistData = res.data;
+      const res = await supabase.rpc('get_monthly_ranking', {
+        p_school_id: rankingSchoolId,
+        p_month_start: curMonthStart,
+        p_month_end: curMonthEnd
+      });
+      if (res.error) console.error('[Ranking Mensal] Erro:', res.error.message, res.error);
+      monthlyRankData = res.data;
     })());
 
+    // Premiação Mensal (mês anterior — via RPC)
     const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const prevMonthStart = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), 1).toISOString().split('T')[0];
-    const prevMonthEnd = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1, 0).toISOString().split('T')[0];
+    const prevMonthStart = fmtLocal(new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), 1));
+    const prevMonthEnd = fmtLocal(new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1, 0));
 
-    // Premiação Mensal
-    let awardsQuery = supabase.from('class_bookings')
-      .select('user_id, profiles!inner(full_name, role, belt, school_id, is_hidden), classes!inner(date, school_id)')
-      .eq('status', 'Presente')
-      .gte('classes.date', prevMonthStart)
-      .lte('classes.date', prevMonthEnd)
-      .eq('profiles.is_hidden', false);
-
-    if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
-        awardsQuery = awardsQuery.eq('profiles.school_id', adminFilterSchool);
-    } else if (profile.role !== 'Admin' && profile.school_id) {
-        awardsQuery = awardsQuery.eq('profiles.school_id', profile.school_id);
-    }
     promises.push((async () => {
-      const res = await awardsQuery;
+      const res = await supabase.rpc('get_monthly_ranking', {
+        p_school_id: rankingSchoolId,
+        p_month_start: prevMonthStart,
+        p_month_end: prevMonthEnd
+      });
+      if (res.error) console.error('[Premiação Mensal] Erro:', res.error.message, res.error);
       awardsData = res.data;
-    })());
-
-    // Histórico de premiação (3 meses anteriores → desempate)
-    const awardsHistEndDate = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), 0); // último dia do mês anterior a prevMonth
-    const awardsHistStartDate = new Date(awardsHistEndDate.getFullYear(), awardsHistEndDate.getMonth() - 2, 1);
-    let awardsHistQuery = supabase.from('class_bookings')
-      .select('user_id, profiles!inner(school_id, is_hidden), classes!inner(date, school_id)')
-      .eq('status', 'Presente')
-      .gte('classes.date', awardsHistStartDate.toISOString().split('T')[0])
-      .lte('classes.date', awardsHistEndDate.toISOString().split('T')[0])
-      .eq('profiles.is_hidden', false);
-    if (profile.role === 'Admin' && adminFilterSchool !== 'all') {
-        awardsHistQuery = (awardsHistQuery as any).eq('profiles.school_id', adminFilterSchool);
-    } else if (profile.role !== 'Admin' && profile.school_id) {
-        awardsHistQuery = (awardsHistQuery as any).eq('profiles.school_id', profile.school_id);
-    }
-    promises.push((async () => {
-      const res = await awardsHistQuery;
-      awardsHistData = res.data;
     })());
 
     // --- AGUARDAR TODAS AS QUERIES EM PARALELO ---
@@ -390,7 +358,7 @@ export default function Dashboard() {
         for (let i = 6; i >= 0; i--) {
           const d = new Date();
           d.setDate(now.getDate() - i);
-          counts[d.toISOString().split('T')[0]] = 0;
+          counts[fmtLocal(d)] = 0;
         }
         attendanceData.forEach((b: any) => {
           const dateKey = b.classes?.date;
@@ -434,43 +402,24 @@ export default function Dashboard() {
     setNextEvent(eventData || null);
     setNextExternalEvents(externalEventData || []);
 
-    if (rankData) {
-      const counts: Record<string, { full_name: string; role: string; belt: string; count: number; tiebreaker: number }> = {};
-      rankData.forEach((r: any) => {
-        const uid = r.user_id;
-        if (!counts[uid]) counts[uid] = { full_name: r.profiles.full_name, role: r.profiles.role, belt: r.profiles.belt, count: 0, tiebreaker: 0 };
-        counts[uid].count++;
-      });
-      // Calcular tiebreaker com histórico das 4 semanas anteriores
-      if (rankHistData) {
-        rankHistData.forEach((r: any) => {
-          if (counts[r.user_id]) counts[r.user_id].tiebreaker++;
-        });
-      }
+    // RPC já retorna dados agregados e ordenados — basta usar directamente
+    if (rankData && rankData.length > 0) {
       setWeeklyRanking(
-        Object.values(counts)
-          .sort((a, b) => b.count !== a.count ? b.count - a.count : b.tiebreaker - a.tiebreaker)
-          .slice(0, 10)
+        rankData.map((r: any) => ({ full_name: r.full_name, role: r.role, belt: r.belt, count: Number(r.count) }))
       );
     } else setWeeklyRanking([]);
 
-    if (awardsData) {
-      const awardCounts: Record<string, { full_name: string; role: string; belt: string; count: number; tiebreaker: number }> = {};
-      awardsData.forEach((r: any) => {
-        const uid = r.user_id;
-        if (!awardCounts[uid]) awardCounts[uid] = { full_name: r.profiles.full_name, role: r.profiles.role, belt: r.profiles.belt, count: 0, tiebreaker: 0 };
-        awardCounts[uid].count++;
-      });
-      // Calcular tiebreaker com histórico dos 3 meses anteriores
-      if (awardsHistData) {
-        awardsHistData.forEach((r: any) => {
-          if (awardCounts[r.user_id]) awardCounts[r.user_id].tiebreaker++;
-        });
-      }
+    // Ranking mensal do mês actual
+    if (monthlyRankData && monthlyRankData.length > 0) {
+      setMonthlyRanking(
+        monthlyRankData.map((r: any) => ({ full_name: r.full_name, role: r.role, belt: r.belt, count: Number(r.count) }))
+      );
+    } else setMonthlyRanking([]);
+
+    // Premiação mensal (mês anterior)
+    if (awardsData && awardsData.length > 0) {
       setMonthlyAwards(
-        Object.values(awardCounts)
-          .sort((a, b) => b.count !== a.count ? b.count - a.count : b.tiebreaker - a.tiebreaker)
-          .slice(0, 5)
+        awardsData.slice(0, 5).map((r: any) => ({ full_name: r.full_name, role: r.role, belt: r.belt, count: Number(r.count) }))
       );
     } else setMonthlyAwards([]);
 
@@ -947,6 +896,35 @@ export default function Dashboard() {
             )}
           </div>
 
+          {/* Ranking Mensal */}
+          <div className="admin-card ranking-card">
+            <h3 className="admin-card-title">📊 Ranking Mensal da Escola</h3>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1rem', marginTop: '-0.5rem' }}>
+              Top 10 presenças de {new Date().toLocaleDateString('pt-PT', { month: 'long' })}
+            </p>
+            {monthlyRanking.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Ainda sem presenças este mês.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {monthlyRanking.map((r, idx) => {
+                  const maxCount = monthlyRanking[0].count;
+                  const pct = maxCount > 0 ? Math.max(6, Math.round((r.count / maxCount) * 100)) : 0;
+                  const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+                  return (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ width: '1.8rem', textAlign: 'center', fontSize: idx < 3 ? '1rem' : '0.75rem', color: idx < 3 ? 'white' : 'var(--text-muted)', flexShrink: 0 }}>{medal}</span>
+                      <span style={{ width: '7rem', fontSize: '0.78rem', color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{r.full_name}</span>
+                      <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: '9999px', height: '8px', overflow: 'hidden' }}>
+                        <div style={{ width: `${pct}%`, height: '100%', borderRadius: '9999px', background: idx === 0 ? 'linear-gradient(90deg, #8b5cf6, #a78bfa)' : idx === 1 ? 'linear-gradient(90deg, #9ca3af, #d1d5db)' : idx === 2 ? 'linear-gradient(90deg, #b45309, #d97706)' : 'linear-gradient(90deg, #06b6d4, #67e8f9)', transition: 'width 0.5s ease' }} />
+                      </div>
+                      <span style={{ width: '1.5rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 700, color: idx === 0 ? '#a78bfa' : 'white', flexShrink: 0 }}>{r.count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Premiação Mensal */}
           {monthlyAwards.length > 0 && (() => {
             const prevMonthName = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)
@@ -1370,6 +1348,33 @@ export default function Dashboard() {
                     <div style={{ width: `${pct}%`, height: '100%', borderRadius: '9999px', background: idx === 0 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : idx === 1 ? 'linear-gradient(90deg, #9ca3af, #d1d5db)' : idx === 2 ? 'linear-gradient(90deg, #b45309, #d97706)' : 'linear-gradient(90deg, var(--primary), #34d399)', transition: 'width 0.5s ease' }} />
                   </div>
                   <span style={{ width: '1.5rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 700, color: idx === 0 ? '#fbbf24' : 'white', flexShrink: 0 }}>{r.count}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Ranking Mensal da Escola (todos os utilizadores) */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '1rem', padding: '1.25rem', marginBottom: '1.25rem' }}>
+        <h3 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 700 }}>📊 Ranking Mensal da Escola</h3>
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1rem', marginTop: '0.1rem' }}>Top 10 presenças de {new Date().toLocaleDateString('pt-PT', { month: 'long' })}</p>
+        {monthlyRanking.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Ainda sem presenças este mês.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {monthlyRanking.map((r, idx) => {
+              const maxCount = monthlyRanking[0].count;
+              const pct = maxCount > 0 ? Math.max(6, Math.round((r.count / maxCount) * 100)) : 0;
+              const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+              return (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ width: '1.8rem', textAlign: 'center', fontSize: idx < 3 ? '1rem' : '0.75rem', color: idx < 3 ? 'white' : 'var(--text-muted)', flexShrink: 0 }}>{medal}</span>
+                  <span style={{ width: '7rem', fontSize: '0.78rem', color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{r.full_name}</span>
+                  <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: '9999px', height: '8px', overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', borderRadius: '9999px', background: idx === 0 ? 'linear-gradient(90deg, #8b5cf6, #a78bfa)' : idx === 1 ? 'linear-gradient(90deg, #9ca3af, #d1d5db)' : idx === 2 ? 'linear-gradient(90deg, #b45309, #d97706)' : 'linear-gradient(90deg, #06b6d4, #67e8f9)', transition: 'width 0.5s ease' }} />
+                  </div>
+                  <span style={{ width: '1.5rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 700, color: idx === 0 ? '#a78bfa' : 'white', flexShrink: 0 }}>{r.count}</span>
                 </div>
               );
             })}
