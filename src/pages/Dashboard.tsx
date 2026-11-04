@@ -6,6 +6,7 @@ import { isProfessor } from '../lib/roles';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import AthleteSwitcher from '../components/AthleteSwitcher';
 
 // ==============================================================================
 // Regras de Graduação — atualizadas em 2026-07
@@ -36,7 +37,7 @@ const GRADUATION_RULES: Record<string, { totalForNextBelt: number, classesPerDeg
 };
 
 export default function Dashboard() {
-  const { profile } = useOutletContext<{ profile: any }>();
+  const { profile, athletes, setActiveAthleteId } = useOutletContext<any>();
   const [stats, setStats] = useState({
     weekClasses: 0,
     nextClasses: [] as any[],
@@ -627,6 +628,14 @@ export default function Dashboard() {
 
     return (
       <div className="dashboard animate-fade-in">
+        {athletes && athletes.length > 1 && (
+          <AthleteSwitcher
+            athletes={athletes}
+            activeAthlete={profile}
+            onSelectAthlete={setActiveAthleteId}
+            label="Comutar Atleta / Perfil"
+          />
+        )}
         <header className="dashboard-welcome" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
           <div>
             <h1 className="page-title" style={{ marginBottom: '0.5rem' }}>{timeGreeting}, {greeting} {profile.full_name.split(' ')[0]}! 👋</h1>
@@ -1066,9 +1075,37 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard animate-fade-in">
+      {athletes && athletes.length > 1 && (
+        <AthleteSwitcher
+          athletes={athletes}
+          activeAthlete={profile}
+          onSelectAthlete={setActiveAthleteId}
+          label="Comutar Atleta"
+        />
+      )}
+
+      {profile?.needs_validation && (
+        <div style={{
+          background: 'rgba(245, 158, 11, 0.1)',
+          border: '1px solid rgba(245, 158, 11, 0.3)',
+          borderRadius: '0.85rem',
+          padding: '0.9rem 1.25rem',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          color: '#f59e0b',
+          fontSize: '0.875rem'
+        }}>
+          <span style={{ fontSize: '1.4rem' }}>⏳</span>
+          <div>
+            <strong>Atleta a aguardar aprovação:</strong> O perfil de <strong>{profile.full_name}</strong> ainda está pendente de validação pelo professor responsável ou administrador.
+          </div>
+        </div>
+      )}
       <header className="dashboard-welcome" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
         <div>
-          <h1 className="page-title" style={{ marginBottom: '0.5rem' }}>Olá, {profile.full_name.split(' ')[0]}!</h1>
+          <h1 className="page-title" style={{ marginBottom: '0.5rem' }}>Olá, {profile.full_name}! 👋</h1>
           <p className="welcome-text" style={{ margin: 0 }}>Bora completar mais um treino de hoje?</p>
         </div>
         

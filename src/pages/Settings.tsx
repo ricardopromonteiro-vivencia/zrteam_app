@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Lock, User, ShieldCheck, Trash2, AlertTriangle, Edit2, Save, X, Send, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Lock, User, ShieldCheck, Trash2, AlertTriangle, Edit2, Save, X, Send, Clock, CheckCircle, XCircle, UserPlus, Users } from 'lucide-react';
+import AddDependentAthleteModal from '../components/AddDependentAthleteModal';
 
 const BELTS = [
     'Branco Kid',
@@ -13,7 +14,7 @@ const BELTS = [
 ];
 
 export default function Settings() {
-    const { profile } = useOutletContext<{ profile: any }>();
+    const { profile, athletes, primaryProfile, refreshProfiles } = useOutletContext<any>();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -23,6 +24,9 @@ export default function Settings() {
     const [professors, setProfessors] = useState<any[]>([]);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+
+    // Estado para gestão de atletas da conta
+    const [showAddAthleteModal, setShowAddAthleteModal] = useState(false);
 
     // Estado para pedido de mudança de faixa/grau
     const [showGradeModal, setShowGradeModal] = useState(false);
@@ -555,7 +559,122 @@ export default function Settings() {
                 </div>
             )}
 
-            <style>{`
+            
+            {/* Secção: Gerir Atletas da Conta */}
+            {primaryProfile && !primaryProfile.guardian_id && primaryProfile.role === 'Atleta' && (
+                <div className="settings-card" style={{ marginTop: '2rem' }}>
+                    <div className="card-header">
+                        <Users className="text-primary" />
+                        <h2>Atletas da Conta</h2>
+                        <button
+                            onClick={() => setShowAddAthleteModal(true)}
+                            style={{
+                                marginLeft: 'auto',
+                                background: 'var(--primary)',
+                                border: 'none',
+                                color: 'white',
+                                borderRadius: '0.6rem',
+                                padding: '0.4rem 0.9rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                fontSize: '0.82rem',
+                                fontWeight: 700,
+                            }}
+                        >
+                            <UserPlus size={14} /> Novo Atleta
+                        </button>
+                    </div>
+
+                    {athletes && athletes.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            {athletes.map((a: any) => (
+                                <div key={a.id} style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.75rem',
+                                    padding: '0.75rem 1rem',
+                                    background: 'rgba(255,255,255,0.03)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '0.75rem',
+                                }}>
+                                    <div style={{
+                                        width: 38, height: 38,
+                                        borderRadius: '50%',
+                                        background: 'rgba(16,185,129,0.12)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'var(--primary)',
+                                        fontWeight: 700,
+                                        fontSize: '0.9rem',
+                                        flexShrink: 0,
+                                    }}>
+                                        {a.full_name?.charAt(0)?.toUpperCase() || '?'}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ color: 'white', fontWeight: 600, fontSize: '0.9rem' }}>
+                                            {a.full_name}
+                                            {!a.guardian_id && (
+                                                <span style={{
+                                                    marginLeft: '0.5rem',
+                                                    fontSize: '0.65rem',
+                                                    background: 'rgba(16,185,129,0.15)',
+                                                    color: 'var(--primary)',
+                                                    border: '1px solid rgba(16,185,129,0.25)',
+                                                    borderRadius: '9999px',
+                                                    padding: '0.1rem 0.45rem',
+                                                    fontWeight: 700,
+                                                }}>Principal</span>
+                                            )}
+                                        </div>
+                                        <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                                            {a.belt}{a.degrees > 0 ? ` · ${a.degrees}° grau` : ''} · {a.school?.name || 'Sem escola'}
+                                        </div>
+                                    </div>
+                                    {a.needs_validation ? (
+                                        <span style={{
+                                            fontSize: '0.7rem',
+                                            background: 'rgba(245,158,11,0.12)',
+                                            color: '#f59e0b',
+                                            border: '1px solid rgba(245,158,11,0.25)',
+                                            borderRadius: '9999px',
+                                            padding: '0.2rem 0.6rem',
+                                            fontWeight: 700,
+                                            flexShrink: 0,
+                                        }}>⏳ Pendente</span>
+                                    ) : (
+                                        <span style={{
+                                            fontSize: '0.7rem',
+                                            background: 'rgba(16,185,129,0.12)',
+                                            color: '#10b981',
+                                            border: '1px solid rgba(16,185,129,0.25)',
+                                            borderRadius: '9999px',
+                                            padding: '0.2rem 0.6rem',
+                                            fontWeight: 700,
+                                            flexShrink: 0,
+                                        }}>✓ Ativo</span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                            Nenhum atleta adicional nesta conta.
+                        </p>
+                    )}
+                </div>
+            )}
+
+            {/* Modal: Adicionar Atleta Dependente */}
+            {showAddAthleteModal && (
+                <AddDependentAthleteModal
+                    onClose={() => setShowAddAthleteModal(false)}
+                    onSuccess={() => { if (refreshProfiles) refreshProfiles(); }}
+                />
+            )}
+<style>{`
                 .settings-page { max-width: 1000px; margin: 0 auto; }
                 .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem; }
                 .settings-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 1rem; padding: 2rem; }

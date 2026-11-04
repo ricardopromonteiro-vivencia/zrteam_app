@@ -5,9 +5,10 @@ import { supabase } from '../lib/supabase';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import AthleteSwitcher from '../components/AthleteSwitcher';
 
 export default function Classes() {
-    const { profile } = useOutletContext<{ profile: any }>();
+    const { profile, athletes, setActiveAthleteId } = useOutletContext<any>();
     const [classes, setClasses] = useState<any[]>([]);
     const [userBookings, setUserBookings] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
@@ -83,7 +84,7 @@ export default function Classes() {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [profile?.id]);
 
     const fetchData = async (): Promise<void> => {
         setLoading(true);
@@ -390,6 +391,34 @@ export default function Classes() {
 
     return (
         <div className="classes-page animate-fade-in">
+            {/* Comutador de Atleta na parte superior da página */}
+            {athletes && athletes.length > 1 && (
+                <AthleteSwitcher
+                    athletes={athletes}
+                    activeAthlete={profile}
+                    onSelectAthlete={setActiveAthleteId}
+                    label="Marcação para o Atleta"
+                />
+            )}
+
+            {/* Aviso se o atleta estiver pendente de validação */}
+            {profile?.needs_validation && (
+                <div style={{
+                    background: 'rgba(245, 158, 11, 0.1)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    borderRadius: '0.75rem',
+                    padding: '0.75rem 1rem',
+                    marginBottom: '1rem',
+                    color: '#f59e0b',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                }}>
+                    <span>⏳</span>
+                    <span><strong>{profile.full_name}</strong> aguarda validação. As inscrições em aulas estão bloqueadas até aprovação pelo professor ou administrador.</span>
+                </div>
+            )}
             <div className="page-header">
                 <div>
                     <h1 className="page-title">{isAdmin ? 'Gestão de Aulas' : 'Aulas Disponíveis'}</h1>
@@ -524,6 +553,19 @@ export default function Classes() {
                                         const isPastDeadline = now >= deadline;
                                         const isManagementRole = profile?.role === 'Admin' || profile?.role === 'Professor Responsável';
                                         const isParticipantRole = profile?.role === 'Atleta' || profile?.role === 'Professor';
+
+                                        // Bloqueio se o atleta aguarda validação
+                                        if (profile?.needs_validation && !isEnrolled) {
+                                            return (
+                                                <button
+                                                    className="btn-booking mt-4 w-full"
+                                                    disabled
+                                                    style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.6rem', borderRadius: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}
+                                                >
+                                                    <Clock size={17} /> A aguardar aprovação
+                                                </button>
+                                            );
+                                        }
 
                                         // Bloqueio de pagamento — apenas para atletas
                                         if (paymentBlocked && !isEnrolled && profile?.role === 'Atleta') {

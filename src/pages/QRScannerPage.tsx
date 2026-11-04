@@ -3,6 +3,7 @@ import { useOutletContext, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Html5Qrcode } from 'html5-qrcode';
 import { CheckCircle, XCircle, AlertTriangle, Camera, ArrowLeft } from 'lucide-react';
+import AthleteSwitcher from '../components/AthleteSwitcher';
 
 type ScanResult =
     | { type: 'success'; classTitle: string; startTime: string }
@@ -13,7 +14,7 @@ type ScanResult =
     | null;
 
 export default function QRScannerPage() {
-    const { profile } = useOutletContext<{ profile: any }>();
+    const { profile, athletes, setActiveAthleteId } = useOutletContext<any>();
     const navigate = useNavigate();
     const [scanning, setScanning] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -31,7 +32,7 @@ export default function QRScannerPage() {
                     await scannerRef.current.stop();
                 }
             } catch {
-                // Ignorar erros ao parar (já pode ter parado)
+                // Ignorar erros ao parar (jÃ¡ pode ter parado)
             }
             scannerRef.current = null;
         }
@@ -48,6 +49,7 @@ export default function QRScannerPage() {
 
         const { data, error } = await supabase.rpc('qr_self_checkin', {
             qr_code_param: decodedText,
+            athlete_id_param: profile?.id || null,
         });
 
         setLoading(false);
@@ -73,18 +75,21 @@ export default function QRScannerPage() {
                 case 'invalid_code':
                     setResult({ type: 'invalid_code' });
                     break;
+                case 'athlete_needs_validation':
+                    setResult({ type: 'error', message: 'Este atleta ainda aguarda aprovacao pelo professor ou administrador.' });
+                    break;
                 default:
                     setResult({ type: 'error', message: res.reason || 'Erro desconhecido' });
             }
         }
-    }, [loading, stopScanner]);
+    }, [loading, stopScanner, profile?.id]);
 
     const startScanner = useCallback(async () => {
         setCameraError(null);
         setResult(null);
         processedRef.current = false;
 
-        // Aguardar um tick para garantir que o div está montado
+        // Aguardar um tick para garantir que o div esta montado
         await new Promise(r => setTimeout(r, 100));
 
         const scanner = new Html5Qrcode('qr-reader', { verbose: false });
@@ -92,30 +97,30 @@ export default function QRScannerPage() {
 
         try {
             await scanner.start(
-                { facingMode: 'environment' }, // câmera traseira
+                { facingMode: 'environment' }, // camara traseira
                 {
                     fps: 10,
                     qrbox: { width: 250, height: 250 },
                     aspectRatio: 1.0,
                 },
                 handleQRSuccess,
-                () => { /* erro de scan — ignorar silenciosamente */ }
+                () => { /* ignorar silenciosamente */ }
             );
             setScanning(true);
         } catch (err: any) {
             scannerRef.current = null;
             const msg = err?.message || String(err);
             if (msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('denied')) {
-                setCameraError('Acesso à câmera negado. Permite o acesso nas definições do teu browser.');
+                setCameraError('Acesso a camara negado. Permite o acesso nas definicoes do teu browser.');
             } else if (msg.toLowerCase().includes('notfound') || msg.toLowerCase().includes('no camera')) {
-                setCameraError('Câmera não encontrada neste dispositivo.');
+                setCameraError('Camara nao encontrada neste dispositivo.');
             } else {
-                setCameraError('Não foi possível iniciar a câmera. ' + msg);
+                setCameraError('Nao foi possivel iniciar a camara. ' + msg);
             }
         }
     }, [handleQRSuccess]);
 
-    // Parar scanner ao sair da página
+    // Parar scanner ao sair da pagina
     useEffect(() => {
         return () => {
             stopScanner();
@@ -142,6 +147,35 @@ export default function QRScannerPage() {
                 </button>
                 <h1 className="page-title" style={{ marginBottom: 0 }}>Fazer Check-in</h1>
             </div>
+
+            {/* Comutador de Atleta na parte superior da p&#225;gina */}
+            {athletes && athletes.length > 1 && (
+                <AthleteSwitcher
+                    athletes={athletes}
+                    activeAthlete={profile}
+                    onSelectAthlete={setActiveAthleteId}
+                    label="Fazer Check-in para"
+                />
+            )}
+
+            {/* Aviso se o atleta estiver pendente de validação */}
+            {profile?.needs_validation && (
+                <div style={{
+                    background: 'rgba(245, 158, 11, 0.1)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    borderRadius: '0.75rem',
+                    padding: '0.75rem 1rem',
+                    marginBottom: '1rem',
+                    color: '#f59e0b',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                }}>
+                    <span>&#x23F3;</span>
+                    <span><strong>{profile.full_name}</strong> aguarda validação. O check-in só estará disponível após aprovação pelo professor ou administrador.</span>
+                </div>
+            )}
 
             <div className="qr-scanner-body">
                 {/* Estado: resultado de check-in */}
@@ -228,13 +262,13 @@ export default function QRScannerPage() {
                     </div>
                 )}
 
-                {/* Estado: câmera com erro */}
+                {/* Estado: câmara com erro */}
                 {!scanning && !loading && !result && cameraError && (
                     <div className="qr-result-card animate-fade-in">
                         <div className="qr-result-icon danger">
                             <Camera size={64} />
                         </div>
-                        <h2 className="qr-result-title danger">Câmera indisponível</h2>
+                        <h2 className="qr-result-title danger">Câmara indisponível</h2>
                         <p className="qr-result-detail">{cameraError}</p>
                         <button className="btn-qr-action" onClick={startScanner}>
                             <Camera size={18} /> Tentar novamente
@@ -250,22 +284,22 @@ export default function QRScannerPage() {
                         </div>
                         <h2 className="qr-start-title">Pronto para fazer check-in</h2>
                         <p className="qr-start-desc">
-                            Aponta a câmera para o código QR exibido na escola para registar a tua presença.
+                            Aponta a câmara para o código QR exibido na escola para registar a tua presença.
                         </p>
                         <div className="qr-info-box">
-                            <span>📋</span>
+                            <span>ðŸ“‹</span>
                             <span>
                                 Precisas de ter uma <strong>marcação ativa</strong> numa aula que decorre agora
                                 (ou que comece em menos de 30 minutos).
                             </span>
                         </div>
                         <button className="btn-qr-start" onClick={startScanner}>
-                            <Camera size={20} /> Abrir câmera
+                            <Camera size={20} /> Abrir câmara
                         </button>
                     </div>
                 )}
 
-                {/* Viewfinder da câmera: está SEMPRE no DOM, mas oculto quando não scanning */}
+                {/* Viewfinder da câmara: está SEMPRE no DOM, mas oculto quando não scanning */}
                 <div 
                     className="qr-viewfinder-area animate-fade-in"
                     style={{ display: (scanning && !loading && !result) ? 'flex' : 'none' }}
@@ -421,7 +455,7 @@ export default function QRScannerPage() {
           border-radius: 1rem;
           overflow: hidden;
         }
-        /* Esconder elementos internos do html5-qrcode que não precisamos */
+        /* Esconder elementos internos do html5-qrcode que nÃ£o precisamos */
         #qr-reader video {
           width: 300px !important;
           height: 300px !important;

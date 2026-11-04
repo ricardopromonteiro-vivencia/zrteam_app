@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
@@ -12,6 +12,11 @@ import { isProfessor } from '../lib/roles';
 
 export default function Layout() {
   const [profile, setProfile] = useState<any>(null);
+  const [primaryProfile, setPrimaryProfile] = useState<any>(null);
+  const [athletes, setAthletes] = useState<any[]>([]);
+  const [activeAthleteId, setActiveAthleteIdState] = useState<string>(() => {
+    return localStorage.getItem('zrteam_active_athlete_id') || '';
+  });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
@@ -22,6 +27,11 @@ export default function Layout() {
   const { isSupported, isSubscribed, subscribe, unsubscribe } = usePushNotifications(profile?.id);
   const navigate = useNavigate();
   const location = useLocation();
+
+  const handleSelectAthlete = useCallback((id: string) => {
+    setActiveAthleteIdState(id);
+    localStorage.setItem('zrteam_active_athlete_id', id);
+  }, []);
 
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
@@ -47,8 +57,8 @@ export default function Layout() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.pathname]);
 
-  useEffect(() => {
-    async function loadSession() {
+  const loadSession = useCallback(async () => {
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         navigate('/');
@@ -113,16 +123,56 @@ export default function Layout() {
       }
 
       if (data) {
-        setProfile(data);
+        setPrimaryProfile(data);
+
+        // Buscar atletas dependentes associados a esta conta
+        let dependentList: any[] = [];
+        try {
+          const { data: dependents, error: depError } = await supabase
+            .from('profiles')
+            .select('*, school:schools!school_id(name, head_professor_id, payment_management_enabled), assigned_professor:profiles!assigned_professor_id(full_name)')
+            .eq('guardian_id', session.user.id)
+            .eq('is_archived', false)
+            .order('created_at', { ascending: true });
+
+          if (!depError && dependents) {
+            dependentList = dependents;
+          }
+        } catch (err) {
+          console.warn('Erro ao carregar atletas dependentes:', err);
+        }
+
+        const allAthletes = [data, ...dependentList];
+        setAthletes(allAthletes);
+
+        const storedId = localStorage.getItem('zrteam_active_athlete_id');
+        const found = allAthletes.find(a => a.id === storedId);
+        if (found) {
+          setActiveAthleteIdState(found.id);
+          setProfile(found);
+        } else {
+          setActiveAthleteIdState(data.id);
+          setProfile(data);
+          localStorage.setItem('zrteam_active_athlete_id', data.id);
+        }
       } else if (error) {
         console.error('Erro ao carregar perfil:', error);
         // Logout para o utilizador tentar novamente
         await supabase.auth.signOut();
         navigate('/');
       }
-    }
-    loadSession();
   }, [navigate]);
+
+  useEffect(() => {
+    loadSession();
+  }, [loadSession]);
+
+  useEffect(() => {
+    if (athletes.length > 0) {
+      const current = athletes.find(a => a.id === activeAthleteId) || athletes[0];
+      setProfile(current);
+    }
+  }, [activeAthleteId, athletes]);
 
   // Verificar avisos não lidos
   useEffect(() => {
@@ -289,7 +339,8 @@ export default function Layout() {
     navigate('/');
   };
 
-  const navGroups: { title: string; items: { name: string; path: string; icon: any; badge?: boolean | number }[] }[] = profile?.role === 'Atleta'
+  const effectiveRole = primaryProfile?.role || profile?.role;
+  const navGroups: { title: string; items: { name: string; path: string; icon: any; badge?: boolean | number }[] }[] = effectiveRole === 'Atleta'
     ? [
       {
         title: '📊 Principal',
@@ -321,7 +372,7 @@ export default function Layout() {
         ]
       },
     ]
-    : profile?.role === 'Admin'
+    : effectiveRole === 'Admin'
     ? [
       {
         title: '📊 Principal',
@@ -414,7 +465,7 @@ export default function Layout() {
   if (!profile) return <div className="loading-state">A carregar perfil...</div>;
 
   // BLOQUEIO: Utilizador ainda aguarda validação pelo admin/professor
-  if (profile.needs_validation === true) {
+  if (primaryProfile?.needs_validation === true) {
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -524,7 +575,14 @@ export default function Layout() {
         <div className="sidebar-footer">
           <div className="user-info">
             <span className="user-name">{profile.full_name}</span>
-            <span className="user-belt">{profile.belt}</span>
+            <span className="user-belt">
+              {profile.belt}
+              {athletes.length > 1 && (
+                <span style={{ fontSize: '0.68rem', marginLeft: '0.4rem', color: 'var(--primary)', fontWeight: 700 }}>
+                  ({athletes.length} atletas)
+                </span>
+              )}
+            </span>
           </div>
           <button onClick={handleSignOut} className="btn-logout" title="Sair">
             <LogOut size={20} />
@@ -538,7 +596,14 @@ export default function Layout() {
       </nav>
 
       <main className="main-content">
-        <Outlet context={{ profile }} />
+        <Outlet context={{ 
+          profile, 
+          primaryProfile, 
+          athletes, 
+          activeAthleteId, 
+          setActiveAthleteId: handleSelectAthlete, 
+          refreshProfiles: loadSession 
+        }} />
       </main>
 
       {/* Estilos específicos do Layout que podem ser partilhados */}
