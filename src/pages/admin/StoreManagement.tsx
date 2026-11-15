@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Package, Plus, Edit2, Trash2, Camera, Save, X, Tag } from 'lucide-react';
 
@@ -15,6 +16,7 @@ interface Variant {
 }
 
 export default function StoreManagement() {
+    const { profile } = useOutletContext<{ profile: any }>();
     const [categories, setCategories] = useState<Category[]>([]);
     const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -35,6 +37,15 @@ export default function StoreManagement() {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // Bloquear acesso a não-Admins
+    if (profile?.role !== 'Admin') {
+        return (
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                Acesso restrito a Administradores.
+            </div>
+        );
+    }
 
     async function handleSaveCategory(e: React.FormEvent) {
         e.preventDefault();

@@ -32,6 +32,9 @@ export default function Login() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [acceptedTerms, setAcceptedTerms] = useState(false);
+    // Rate limiting no login: bloqueia temporariamente após 5 tentativas falhadas
+    const [loginAttempts, setLoginAttempts] = useState(0);
+    const [loginLockedUntil, setLoginLockedUntil] = useState<number | null>(null);
 
     useEffect(() => {
         async function loadSchools() {
@@ -62,10 +65,30 @@ export default function Login() {
         setError(null);
         setSuccess(null);
 
+        // Verificar bloqueio temporário por tentativas de login excessivas
+        if (mode === 'login' && loginLockedUntil && Date.now() < loginLockedUntil) {
+            const segundos = Math.ceil((loginLockedUntil - Date.now()) / 1000);
+            setError(`Demasiadas tentativas falhadas. Tenta novamente em ${segundos} segundos.`);
+            setLoading(false);
+            return;
+        }
+
         try {
             if (mode === 'login') {
                 const { error } = await supabase.auth.signInWithPassword({ email, password });
-                if (error) throw error;
+                if (error) {
+                    // Incrementar contador de tentativas falhadas
+                    const novasT = loginAttempts + 1;
+                    setLoginAttempts(novasT);
+                    if (novasT >= 5) {
+                        setLoginLockedUntil(Date.now() + 60 * 1000); // Bloquear 60 segundos
+                        setLoginAttempts(0);
+                    }
+                    throw error;
+                }
+                // Login bem-sucedido: resetar contador
+                setLoginAttempts(0);
+                setLoginLockedUntil(null);
             } else if (mode === 'register') {
                 if (!email || !password || !fullName || !schoolId || !dateOfBirth || !belt || !degrees || !professorId) {
                     setError('Por favor, preenche todos os campos obrigatórios antes de registar.');
@@ -111,7 +134,7 @@ export default function Login() {
                 setSuccess('Conta criada com sucesso! Faz login para entrar.');
                 switchMode('login');
             } else if (mode === 'recover') {
-                // 1. Verificação segura anti-enumeração
+                // 1. Verificação segura com rate limiting no servidor
                 const { data: emailExists, error: rpcError } = await supabase.rpc('check_email_exists_secure', {
                     p_email: email
                 });

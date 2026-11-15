@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { ShoppingBag, CheckCircle, Clock, XCircle, Search, User, Building, Calendar, ChevronDown, ChevronUp, FileDown, ClipboardList, Trash2 } from 'lucide-react';
 
@@ -18,6 +19,7 @@ interface GroupedOrders {
 }
 
 export default function OrderManagement() {
+    const { profile } = useOutletContext<{ profile: any }>();
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
@@ -52,6 +54,15 @@ export default function OrderManagement() {
     useEffect(() => {
         fetchOrders();
     }, [fetchOrders]);
+
+    // Bloquear acesso a não-Admins
+    if (profile?.role !== 'Admin') {
+        return (
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                Acesso restrito a Administradores.
+            </div>
+        );
+    }
 
     async function updateOrderStatus(orderId: string, newStatus: string) {
         if (!confirm(`Mudar estado para ${newStatus}?`)) return;
